@@ -1,6 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const { readDB, writeDB } = require('../db');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const posterStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '..', 'public', 'storage', 'posters');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, 'poster_' + Date.now() + ext);
+  }
+});
+const uploadPoster = multer({ storage: posterStorage });
+
+// Upload Poster API (allows direct image upload via Admin Panel)
+router.post('/data/upload-poster', uploadPoster.single('poster'), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'គ្មានរូបភាពត្រូវបានជ្រើសរើស' });
+  const relativeUrl = `/storage/posters/${req.file.filename}`;
+  res.json({
+    message: 'Upload poster ជោគជ័យ!',
+    url: relativeUrl
+  });
+});
+
 
 // Admin Auth
 router.post('/login', (req, res) => {

@@ -43,6 +43,67 @@ const app = createApp({
     const isPurchased = ref(false);
     const isBuying = ref(false);
     const purchasedMovies = ref([]);
+    const continueWatching = ref([]); // [{ movie, currentTime, duration, percent, lastWatched }]
+
+    const loadWatchHistory = () => {
+      try {
+        const raw = localStorage.getItem('sdach_watch_history_' + (user.value?.id || 'guest'));
+        if (raw) {
+          const list = JSON.parse(raw);
+          // Sort by lastWatched descending (most recent first)
+          list.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
+          continueWatching.value = list;
+        }
+      } catch (e) {}
+    };
+
+    const saveWatchProgress = (movie, currentTime, duration) => {
+      if (!movie || !duration || duration <= 0) return;
+      const percent = Math.min(100, Math.max(1, Math.round((currentTime / duration) * 100)));
+      try {
+        const key = 'sdach_watch_history_' + (user.value?.id || 'guest');
+        let list = [];
+        const raw = localStorage.getItem(key);
+        if (raw) list = JSON.parse(raw);
+        // Remove existing entry for this movie if any
+        list = list.filter(item => item.movie?.id !== movie.id);
+        // Prepend new entry to the front
+        list.unshift({
+          movie: {
+            id: movie.id,
+            title_kh: movie.title_kh,
+            title_en: movie.title_en,
+            poster_path: movie.poster_path,
+            backdrop_path: movie.backdrop_path,
+            rating: movie.rating,
+            release_year: movie.release_year,
+            type: movie.type,
+            price: movie.price,
+            video_url: movie.video_url,
+            is_dubbed: movie.is_dubbed
+          },
+          currentTime: Math.floor(currentTime),
+          duration: Math.floor(duration),
+          percent: percent,
+          lastWatched: Date.now()
+        });
+        // Keep max 20 entries
+        if (list.length > 20) list = list.slice(0, 20);
+        localStorage.setItem(key, JSON.stringify(list));
+        continueWatching.value = list;
+      } catch (e) {}
+    };
+
+    const formatDuration = (seconds) => {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      const h = Math.floor(m / 60);
+      if (h > 0) {
+        return h + ':' + (m % 60 < 10 ? '0' : '') + (m % 60) + ':' + (s < 10 ? '0' : '') + s;
+      }
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    };
 
     const adminTelegramLink = ref('https://t.me/AmmSnA');
 
@@ -136,7 +197,33 @@ const app = createApp({
       isPlayerOpen.value = true;
       nextTick(() => {
         const v = document.getElementById('sdach-video-player');
-        if (v) v.play().catch(() => {});
+        if (v) {
+          // Check if there is saved progress to auto resume
+          const hist = continueWatching.value.find(item => item.movie?.id === movie.id);
+          if (hist && hist.currentTime > 5 && hist.percent < 95) {
+            v.currentTime = hist.currentTime;
+          }
+
+          // Track progress on timeupdate
+          let lastSave = 0;
+          v.ontimeupdate = () => {
+            const now = Date.now();
+            if (now - lastSave > 2500 && v.duration) {
+              lastSave = now;
+              saveWatchProgress(movie, v.currentTime, v.duration);
+            }
+          };
+
+          // Save on pause or ended
+          v.onpause = () => {
+            if (v.duration) saveWatchProgress(movie, v.currentTime, v.duration);
+          };
+          v.onended = () => {
+            if (v.duration) saveWatchProgress(movie, v.duration, v.duration);
+          };
+
+          v.play().catch(() => {});
+        }
       });
     };
 
@@ -212,13 +299,14 @@ const app = createApp({
     onMounted(async () => {
       await initTelegram();
       await loadData();
+      loadWatchHistory();
     });
 
     return {
       activeTab, user, movies, sliderMovies, popularMovies, dubbedMovies, seriesMovies,
       currentSlide, searchQuery, selectedGenre, selectedLanguage, genres, filteredMovies,
       selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, currentEpisode, movieSeasons,
-      isPurchased, isBuying, purchasedMovies, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
+      isPurchased, isBuying, purchasedMovies, continueWatching, formatDuration, purchasedMovies, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
       adminTelegramLink, showNotify, openMovie, playMovie, buyMovie, openTopup, openVip, downloadQR
     };
   }

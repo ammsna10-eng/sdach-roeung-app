@@ -151,6 +151,77 @@
     <div id="app"></div>
 
     <!-- Application Bundle -->
+    <!-- 🖼️ Helper script for Direct Poster Upload & Image Paste in Admin Panel -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Observe DOM for poster inputs and attach file upload / paste helpers
+        var observer = new MutationObserver(function() {
+          var posterInputs = document.querySelectorAll('input[type="url"]');
+          posterInputs.forEach(function(input) {
+            var label = input.previousElementSibling;
+            if (label && (label.innerText.includes('Poster') || label.innerText.includes('Backdrop')) && !input.dataset.hasUploader) {
+              input.dataset.hasUploader = 'true';
+              
+              var container = document.createElement('div');
+              container.className = 'mt-2 flex items-center gap-2 text-xs';
+              container.innerHTML = '<label class="cursor-pointer px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold transition-all shadow flex items-center gap-1.5"><span>📁 រើសរូបពីកុំព្យូទ័រ (Upload)</span><input type="file" accept="image/*" class="hidden"></label><span class="text-gray-400 text-[11px]">(ឬ Copy រូបភាពរួចចុច Ctrl + V ដើម្បី Paste ក៏បាន)</span>';
+              
+              var fileInput = container.querySelector('input[type="file"]');
+              fileInput.addEventListener('change', function(e) {
+                if (!e.target.files || !e.target.files[0]) return;
+                uploadFile(e.target.files[0], input);
+              });
+              
+              input.parentNode.appendChild(container);
+
+              // Allow paste image directly when focusing input
+              input.addEventListener('paste', function(e) {
+                var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                for (var i = 0; i < items.length; i++) {
+                  if (items[i].type.indexOf('image') !== -1) {
+                    var blob = items[i].getAsFile();
+                    uploadFile(blob, input);
+                    e.preventDefault();
+                    break;
+                  }
+                }
+              });
+            }
+          });
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        function uploadFile(file, targetInput) {
+          var formData = new FormData();
+          formData.append('poster', file);
+          var originalPlaceholder = targetInput.placeholder;
+          targetInput.placeholder = 'កំពុង Upload រូបភាព... សូមរង់ចាំ';
+          targetInput.disabled = true;
+
+          fetch('/admin/data/upload-poster', {
+            method: 'POST',
+            body: formData
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            targetInput.disabled = false;
+            targetInput.placeholder = originalPlaceholder;
+            if (data.url) {
+              targetInput.value = data.url;
+              targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+              targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          })
+          .catch(function(err) {
+            targetInput.disabled = false;
+            targetInput.placeholder = originalPlaceholder;
+            alert('Upload បរាជ័យ៖ ' + err.message);
+          });
+        }
+      });
+    </script>
+
     <script type="module" src="/build/assets/app-DkOyG5va.js"></script>
 </body>
 </html>
