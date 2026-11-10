@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { readDB, writeDB } = require('../db');
 const multer = require('multer');
@@ -17,6 +17,19 @@ const posterStorage = multer.diskStorage({
   }
 });
 const uploadPoster = multer({ storage: posterStorage });
+
+const qrStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '..', 'public', 'storage', 'qrs');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.png';
+    cb(null, 'qr_' + Date.now() + ext);
+  }
+});
+const uploadQr = multer({ storage: qrStorage });
 
 // Upload Poster API (allows direct image upload via Admin Panel)
 router.post('/data/upload-poster', uploadPoster.single('poster'), (req, res) => {
