@@ -146,10 +146,16 @@ const app = createApp({
         ]);
         if (mRes.data) {
           movies.value = mRes.data.all || [];
-          sliderMovies.value = mRes.data.slider || mRes.data.all.slice(0, 3);
-          popularMovies.value = mRes.data.popular || mRes.data.all;
+          sliderMovies.value = (mRes.data.slider && mRes.data.slider.length > 0) ? mRes.data.slider : (mRes.data.all || []).slice(0, 5);
+          popularMovies.value = (mRes.data.popular && mRes.data.popular.length > 0) ? mRes.data.popular : (mRes.data.all || []);
           dubbedMovies.value = mRes.data.dubbed || [];
           seriesMovies.value = mRes.data.series || [];
+          if (Array.isArray(mRes.data.genres) && mRes.data.genres.length > 0) {
+            genres.value = [
+              { id: 'all', name: 'ទាំងអស់ (All)' },
+              ...mRes.data.genres.map(g => ({ id: g.id, name: g.name }))
+            ];
+          }
         }
         if (topRes.data) topupPackages.value = topRes.data;
         if (vipRes.data) vipPlans.value = vipRes.data;
@@ -168,7 +174,7 @@ const app = createApp({
           m.title_kh.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
           (m.title_en && m.title_en.toLowerCase().includes(searchQuery.value.toLowerCase()));
         const matchGenre = selectedGenre.value === 'all' || 
-          (m.genres && m.genres.some(g => g.id === selectedGenre.value));
+          (Array.isArray(m.genres) && m.genres.some(g => g && (String(g.id) === String(selectedGenre.value) || String(g) === String(selectedGenre.value))));
         const matchLang = selectedLanguage.value === 'all' || 
           (selectedLanguage.value === 'dubbed' && m.is_dubbed) ||
           (selectedLanguage.value === 'sub' && !m.is_dubbed);

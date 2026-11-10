@@ -51,16 +51,44 @@ router.put('/data/users/:id', (req, res) => {
   res.json({ message: 'User updated', user });
 });
 
+// Helper: Normalize movie genres into clean [{ id, name }] objects
+function normalizeGenres(inputGenres, dbGenres = []) {
+  const genreMap = new Map(dbGenres.map(g => [Number(g.id), g]));
+  const result = [];
+  if (Array.isArray(inputGenres)) {
+    inputGenres.forEach(g => {
+      if (!g) return;
+      if (typeof g === 'object' && g.id && g.name) {
+        result.push({ id: Number(g.id), name: g.name });
+      } else {
+        const idNum = Number(typeof g === 'object' ? g.id : g);
+        if (genreMap.has(idNum)) {
+          result.push(genreMap.get(idNum));
+        }
+      }
+    });
+  }
+  if (result.length === 0 && dbGenres.length > 0) {
+    result.push(dbGenres[0]);
+  }
+  return result;
+}
+
 router.get('/data/movies', (req, res) => {
   const db = readDB();
-  const movies = db.movies || [];
+  const dbGenres = db.genres || [];
+  const movies = (db.movies || []).map(m => ({
+    ...m,
+    genres: normalizeGenres(m.genres, dbGenres)
+  }));
+
   res.json({
     movies: paginate(movies, req.query.page, 10),
-    genres: db.genres || [],
+    genres: dbGenres,
     countries: db.countries || [],
     stats: {
       total_movies: movies.length,
-      public_movies: movies.filter(m => m.status === 'public').length,
+      public_movies: movies.filter(m => m.status === 'public' || m.status === 'published').length,
       draft_movies: movies.filter(m => m.status === 'draft').length,
       deleted_movies: 0
     },
@@ -70,45 +98,67 @@ router.get('/data/movies', (req, res) => {
 
 router.post('/data/movies', (req, res) => {
   const db = readDB();
+  const dbGenres = db.genres || [];
+  const cleanGenres = normalizeGenres(req.body.genres, dbGenres);
+
+  const langType = req.body.language_type || 'dub';
+  const isDub = langType === 'dub' || langType === 'khmer_dubbed' || req.body.is_dubbed === true;
+
   const movie = {
     id: Date.now(),
     title_kh: req.body.title_kh || 'គ្មានចំណងជើង',
     title_en: req.body.title_en || '',
-    slug: (req.body.title_en || 'movie').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    slug: (req.body.title_en || 'movie-' + Date.now()).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     type: req.body.type || 'movie',
     access_type: req.body.access_type || 'paid',
-    price: parseFloat(req.body.price || 0.5),
+    price: parseFloat(req.body.price !== undefined ? req.body.price : 0.5),
     rating: parseFloat(req.body.rating || 9.5),
     poster_path: req.body.poster_path || '/storage/logo/logo.png',
     backdrop_path: req.body.backdrop_path || req.body.poster_path || '/storage/logo/logo.png',
     trailer_url: req.body.trailer_url || '',
     video_url: req.body.video_url || '',
     overview: req.body.overview || '',
-    language_type: req.body.language_type || 'khmer_dubbed',
-    release_year: req.body.release_year || 2025,
-    status: req.body.status || 'public',
-    is_slider: Boolean(req.body.is_slider),
-    is_popular: Boolean(req.body.is_popular),
+    language_type: isDub ? 'dub' : 'sub',
+    release_year: req.body.release_year || new Date().getFullYear(),
+    runtime_minutes: req.body.runtime_minutes || '',
+    status: req.body.status || 'published',
+    is_slider: req.body.is_slider !== undefined ? Boolean(req.body.is_slider) : true,
+    is_popular: req.body.is_popular !== undefined ? Boolean(req.body.is_popular) : true,
     is_latest: true,
-    is_dubbed: req.body.language_type === 'khmer_dubbed',
-    country_id: req.body.country_id || 1,
-    genres: req.body.genres || [{ id: 1, name: "Action" }],
+    is_dubbed: isDub,
+    country_id: req.body.country_id ? Number(req.body.country_id) : 1,
+    genres: cleanGenres,
     comments: []
   };
 
   db.movies = db.movies || [];
   db.movies.unshift(movie);
   writeDB(db);
-  res.json({ message: 'Movie created', movie });
+  res.json({ message: 'បានបង្កើតរឿងថ្មីជោគជ័យ!', movie });
 });
 
 router.put('/data/movies/:id', (req, res) => {
   const db = readDB();
+  const dbGenres = db.genres || [];
   const movie = (db.movies || []).find(m => m.id === parseInt(req.params.id));
   if (!movie) return res.status(404).json({ message: 'Movie not found' });
-  Object.assign(movie, req.body);
+
+  const cleanGenres = req.body.genres ? normalizeGenres(req.body.genres, dbGenres) : normalizeGenres(movie.genres, dbGenres);
+  const langType = req.body.language_type !== undefined ? req.body.language_type : movie.language_type;
+  const isDub = langType === 'dub' || langType === 'khmer_dubbed';
+
+  Object.assign(movie, req.body, {
+    genres: cleanGenres,
+    language_type: isDub ? 'dub' : 'sub',
+    is_dubbed: isDub,
+    price: req.body.price !== undefined ? parseFloat(req.body.price) : movie.price,
+    rating: req.body.rating !== undefined ? parseFloat(req.body.rating) : movie.rating,
+    is_popular: req.body.is_popular !== undefined ? Boolean(req.body.is_popular) : true,
+    is_slider: req.body.is_slider !== undefined ? Boolean(req.body.is_slider) : true
+  });
+
   writeDB(db);
-  res.json({ message: 'Movie updated', movie });
+  res.json({ message: 'បានកែប្រែរឿងជោគជ័យ!', movie });
 });
 
 router.delete('/data/movies/:id', (req, res) => {

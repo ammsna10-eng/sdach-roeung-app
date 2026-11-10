@@ -4,13 +4,34 @@ const { readDB, writeDB, getCurrentUser } = require('../db');
 
 router.get('/user/movies', (req, res) => {
   const db = readDB();
+  const dbGenres = db.genres || [];
+  const genreMap = new Map(dbGenres.map(g => [Number(g.id), g]));
   const rawMovies = db.movies || [];
 
   // SECURITY FIX: Never expose video_url in the public movie list!
-  // Strip out video_url so bypass scripts cannot read it.
+  // Also normalize genres & dubbing flags so frontend never crashes
   const sanitize = (m) => {
     const { video_url, ...safeMovie } = m;
-    return safeMovie;
+    const cleanGenres = [];
+    if (Array.isArray(m.genres)) {
+      m.genres.forEach(g => {
+        if (!g) return;
+        if (typeof g === 'object' && g.id && g.name) {
+          cleanGenres.push(g);
+        } else {
+          const idNum = Number(typeof g === 'object' ? g.id : g);
+          if (genreMap.has(idNum)) cleanGenres.push(genreMap.get(idNum));
+        }
+      });
+    }
+    const isDub = m.language_type === 'dub' || m.language_type === 'khmer_dubbed' || m.is_dubbed === true;
+    return {
+      ...safeMovie,
+      genres: cleanGenres,
+      is_dubbed: isDub,
+      is_popular: m.is_popular !== undefined ? Boolean(m.is_popular) : true,
+      is_slider: m.is_slider !== undefined ? Boolean(m.is_slider) : true
+    };
   };
 
   const m = rawMovies.map(sanitize);
@@ -20,6 +41,7 @@ router.get('/user/movies', (req, res) => {
     popular: m.filter(x => x.is_popular),
     dubbed: m.filter(x => x.is_dubbed),
     series: m.filter(x => x.type === 'series'),
+    genres: dbGenres,
     all: m
   });
 });

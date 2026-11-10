@@ -48,7 +48,7 @@
       "first_name": "CHAN VEASNA",
       "last_name": "",
       "username": "CHANVEASNA66",
-      "photo_url": null,
+      "photo_url": "https://t.me/i/userpic/320/AT8KCtWNHA6uCsNfm7jcG-HHFCNF5jpb1q8ZkxDnHxU.svg",
       "wallet_balance": 0,
       "is_vip": true,
       "vip_expires_at": "2027-11-10T12:59:56.922Z",
@@ -80,6 +80,10 @@
     {
       "id": 6,
       "name": "Fantasy / ទេវកថា"
+    },
+    {
+      "id": 1794333871507,
+      "name": "Horror story / រឿងភ័យរន្ធក់"
     }
   ],
   "countries": [
@@ -92,12 +96,12 @@
       "name": "កូរ៉េ (Korea)"
     },
     {
-      "id": 3,
-      "name": "ថៃ (Thailand)"
-    },
-    {
       "id": 4,
       "name": "ខ្មែរ (Cambodia)"
+    },
+    {
+      "id": 1794333814374,
+      "name": "ម៉ាឡេស៊ី (Malaysia)"
     }
   ],
   "topup_packages": [
@@ -106,32 +110,36 @@
       "title": "កញ្ចប់ 0.50$ (ទទួលបាន 0.50$)",
       "price": 0.5,
       "balance_amount": 0.5,
-      "qr_image": "/storage/logo/logo.png",
-      "is_active": true
+      "qr_image": "/storage/qrs/qr_1794333181280.jpg",
+      "is_active": true,
+      "name": "កញ្ចប់ 0.50$ (ទទួលបាន 0.50$)"
     },
     {
       "id": 2,
       "title": "កញ្ចប់ 1.00$ (ទទួលបាន 1.00$)",
       "price": 1,
       "balance_amount": 1,
-      "qr_image": "/storage/logo/logo.png",
-      "is_active": true
+      "qr_image": "/storage/qrs/qr_1794333188617.jpg",
+      "is_active": true,
+      "name": "កញ្ចប់ 1.00$ (ទទួលបាន 1.00$)"
     },
     {
       "id": 3,
       "title": "កញ្ចប់ 3.00$ (ថែម 0.50$ = 3.50$)",
       "price": 3,
       "balance_amount": 3.5,
-      "qr_image": "/storage/logo/logo.png",
-      "is_active": true
+      "qr_image": "/storage/qrs/qr_1794333339533.jpg",
+      "is_active": true,
+      "name": "កញ្ចប់ 3.00$ (ថែម 0.50$ = 3.50$)"
     },
     {
       "id": 4,
       "title": "កញ្ចប់ 5.00$ (ថែម 1.00$ = 6.00$)",
       "price": 5,
       "balance_amount": 6,
-      "qr_image": "/storage/logo/logo.png",
-      "is_active": true
+      "qr_image": "/storage/qrs/qr_1794333204529.jpg",
+      "is_active": true,
+      "name": "កញ្ចប់ 5.00$ (ថែម 1.00$ = 6.00$)"
     }
   ],
   "vip_plans": [
@@ -141,7 +149,7 @@
       "price": 2.5,
       "duration_days": 30,
       "description": "ទស្សនាគ្រប់រឿងទាំងអស់ក្នុង App ដោយឥតគិតថ្លៃ",
-      "qr_image": "/storage/logo/logo.png",
+      "qr_image": "/storage/qrs/qr_1794333165466.jpg",
       "is_active": true
     },
     {
@@ -150,11 +158,45 @@
       "price": 6,
       "duration_days": 90,
       "description": "ចំណេញច្រើនជាងមុន ទស្សនាដោយសេរី ពេញលេញ",
-      "qr_image": "/storage/logo/logo.png",
+      "qr_image": "/storage/qrs/qr_1794333171289.jpg",
       "is_active": true
     }
   ],
   "movies": [
+    {
+      "id": 1794333734356,
+      "title_kh": "ដាក់គុកវិញ្ញាណ",
+      "title_en": "Ghost in the Cell",
+      "slug": "ghost-in-the-cell",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9,
+      "poster_path": "https://i.ibb.co/h1Wjjy1v/IMG-20261101-124214-548.jpg",
+      "backdrop_path": "https://i.ibb.co/h1Wjjy1v/IMG-20261101-124214-548.jpg",
+      "trailer_url": "",
+      "video_url": "https://hugh.cdn.rumble.cloud/video/fww1/76/s8/2/Y/K/1/6/YK16A.aaa.mp4",
+      "overview": "ថាមពលដ៏អស្ចារ្យមួយមើលមិនឃើញមួយអ្នកទោសត្រូវសម្លាប់យ៉ាងឃោឃៅដោយក្រុមចោរ និងប៉ូលីសពុករលួយ អនុញ្ញាតឱ្យធ្វើការជាមួយគ្នាដើម្បីរស់រានមានជីវិតកើនឡើង។",
+      "language_type": "dub",
+      "release_year": 2026,
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": true,
+      "country_id": 1794333814374,
+      "genres": [
+        {
+          "id": 2,
+          "name": "Comedy / កំប្លែង"
+        },
+        {
+          "id": 1794333871507,
+          "name": "Horror story / រឿងភ័យរន្ធក់"
+        }
+      ],
+      "comments": []
+    },
     {
       "id": 1,
       "title_kh": "ចាប់ជាតិថ្មីកាត់ផ្តាច់ស្នេហ៍កន្លងក្រោយ",
@@ -169,7 +211,7 @@
       "trailer_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
       "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
       "overview": "រឿងរ៉ាវរបស់យុវជនម្នាក់ដែលបានទទួលឱកាសចាប់ជាតិជាថ្មី ដើម្បីកែប្រែជោគវាសនា...",
-      "language_type": "khmer_dubbed",
+      "language_type": "dub",
       "release_year": 2025,
       "status": "public",
       "is_slider": true,
@@ -203,7 +245,7 @@
       "trailer_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
       "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
       "overview": "ការប្រយុទ្ធដ៏អស្ចារ្យដើម្បីដណ្តើមដាវទេវតា...",
-      "language_type": "khmer_dubbed",
+      "language_type": "dub",
       "release_year": 2025,
       "status": "public",
       "is_slider": true,
