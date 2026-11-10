@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { readDB, writeDB } = require('../db');
 const multer = require('multer');
@@ -31,16 +31,12 @@ const qrStorage = multer.diskStorage({
 });
 const uploadQr = multer({ storage: qrStorage });
 
-// Upload Poster API (allows direct image upload via Admin Panel)
+// Upload Poster API
 router.post('/data/upload-poster', uploadPoster.single('poster'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'គ្មានរូបភាពត្រូវបានជ្រើសរើស' });
-  const relativeUrl = `/storage/posters/${req.file.filename}`;
-  res.json({
-    message: 'Upload poster ជោគជ័យ!',
-    url: relativeUrl
-  });
+  const relativeUrl = '/storage/posters/' + req.file.filename;
+  res.json({ message: 'Upload poster ជោគជ័យ!', url: relativeUrl });
 });
-
 
 // Admin Auth
 router.post('/login', (req, res) => {
@@ -50,7 +46,7 @@ router.post('/login', (req, res) => {
   if (!admin) return res.status(401).json({ message: 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ!' });
 
   res.json({
-    token: `admin_token_${admin.id}`,
+    token: 'admin_token_' + admin.id,
     role: admin.role || 'super_admin',
     user: admin
   });
@@ -84,29 +80,73 @@ router.get('/data/uploader/dashboard-stats', (req, res) => {
   });
 });
 
-// Topup Packages
-router.get('/data/topup-packages', (req, res) => res.json(readDB().topup_packages || []));
-router.post('/data/topup-packages', (req, res) => {
-  const db = readDB();
-  const pkg = {
-    id: Date.now(),
-    title: req.body.title,
-    price: parseFloat(req.body.price),
-    balance_amount: parseFloat(req.body.balance_amount || req.body.price),
-    qr_image: req.body.qr_image || '/storage/logo/logo.png',
-    is_active: Boolean(req.body.is_active)
-  };
-  db.topup_packages = db.topup_packages || [];
-  db.topup_packages.push(pkg);
-  writeDB(db);
-  res.json({ message: 'Package created', package: pkg });
+// ==================== TOPUP PACKAGES ====================
+router.get('/data/topup-packages', (req, res) => {
+  const pkgs = (readDB().topup_packages || []).map(p => ({
+    ...p,
+    name: p.name !== undefined ? p.name : (p.title || '')
+  }));
+  res.json(pkgs);
 });
-router.put('/data/topup-packages/:id', (req, res) => {
+
+const handleSavePackage = (req, res) => {
   const db = readDB();
-  const pkg = (db.topup_packages || []).find(p => p.id === parseInt(req.params.id));
-  if (pkg) { Object.assign(pkg, req.body); writeDB(db); }
-  res.json({ message: 'Package updated', package: pkg });
-});
+  const pkgId = req.params.id ? parseInt(req.params.id) : null;
+  const isUpdate = Boolean(pkgId);
+
+  let existing = null;
+  if (isUpdate) {
+    existing = (db.topup_packages || []).find(p => p.id === pkgId);
+    if (!existing) return res.status(404).json({ message: 'រកមិនឃើញកញ្ចប់នេះទេ' });
+  }
+
+  const priceVal = req.body.price !== undefined && req.body.price !== '' ? parseFloat(req.body.price) : (existing ? existing.price : 1.0);
+  const balanceVal = req.body.balance_amount !== undefined && req.body.balance_amount !== '' ? parseFloat(req.body.balance_amount) : priceVal;
+
+  // Name/Title is completely optional! If empty or 'undefined', keep it clean ''
+  let rawName = req.body.name !== undefined ? req.body.name : (req.body.title !== undefined ? req.body.title : '');
+  if (rawName === 'undefined' || rawName === 'null') rawName = '';
+  const nameVal = String(rawName).trim();
+
+  let qrImg = existing ? existing.qr_image : '/storage/logo/logo.png';
+  if (req.file) {
+    qrImg = '/storage/qrs/' + req.file.filename;
+  } else if (req.body.qr_image && typeof req.body.qr_image === 'string' && req.body.qr_image.startsWith('/')) {
+    qrImg = req.body.qr_image;
+  }
+
+  const isActive = req.body.is_active !== undefined ? Boolean(parseInt(req.body.is_active) || req.body.is_active === 'true' || req.body.is_active === true) : true;
+
+  if (isUpdate) {
+    existing.name = nameVal;
+    existing.title = nameVal || ('កញ្ចប់ $' + priceVal.toFixed(2));
+    existing.price = priceVal;
+    existing.balance_amount = balanceVal;
+    existing.qr_image = qrImg;
+    existing.is_active = isActive;
+    writeDB(db);
+    return res.json({ message: 'បានកែប្រែកញ្ចប់ជោគជ័យ!', package: existing });
+  } else {
+    const newPkg = {
+      id: Date.now(),
+      name: nameVal,
+      title: nameVal || ('កញ្ចប់ $' + priceVal.toFixed(2)),
+      price: priceVal,
+      balance_amount: balanceVal,
+      qr_image: qrImg,
+      is_active: isActive
+    };
+    db.topup_packages = db.topup_packages || [];
+    db.topup_packages.push(newPkg);
+    writeDB(db);
+    return res.json({ message: 'បានបង្កើតកញ្ចប់ថ្មីជោគជ័យ!', package: newPkg });
+  }
+};
+
+router.post('/data/topup-packages', uploadQr.single('qr_image'), handleSavePackage);
+router.post('/data/topup-packages/:id', uploadQr.single('qr_image'), handleSavePackage);
+router.put('/data/topup-packages/:id', uploadQr.single('qr_image'), handleSavePackage);
+
 router.delete('/data/topup-packages/:id', (req, res) => {
   const db = readDB();
   db.topup_packages = (db.topup_packages || []).filter(p => p.id !== parseInt(req.params.id));
@@ -114,30 +154,67 @@ router.delete('/data/topup-packages/:id', (req, res) => {
   res.json({ message: 'Package deleted' });
 });
 
-// VIP Plans
+// ==================== VIP PLANS ====================
 router.get('/data/vip-plans', (req, res) => res.json(readDB().vip_plans || []));
-router.post('/data/vip-plans', (req, res) => {
+
+const handleSaveVipPlan = (req, res) => {
   const db = readDB();
-  const plan = {
-    id: Date.now(),
-    title: req.body.title,
-    price: parseFloat(req.body.price),
-    duration_days: parseInt(req.body.duration_days || 30),
-    description: req.body.description || '',
-    qr_image: req.body.qr_image || '/storage/logo/logo.png',
-    is_active: Boolean(req.body.is_active)
-  };
-  db.vip_plans = db.vip_plans || [];
-  db.vip_plans.push(plan);
-  writeDB(db);
-  res.json({ message: 'Plan created', plan });
-});
-router.put('/data/vip-plans/:id', (req, res) => {
-  const db = readDB();
-  const plan = (db.vip_plans || []).find(p => p.id === parseInt(req.params.id));
-  if (plan) { Object.assign(plan, req.body); writeDB(db); }
-  res.json({ message: 'Plan updated', plan });
-});
+  const planId = req.params.id ? parseInt(req.params.id) : null;
+  const isUpdate = Boolean(planId);
+
+  let existing = null;
+  if (isUpdate) {
+    existing = (db.vip_plans || []).find(p => p.id === planId);
+    if (!existing) return res.status(404).json({ message: 'រកមិនឃើញគម្រោង VIP នេះទេ' });
+  }
+
+  const priceVal = req.body.price !== undefined && req.body.price !== '' ? parseFloat(req.body.price) : (existing ? existing.price : 2.5);
+  const daysVal = req.body.duration_days !== undefined && req.body.duration_days !== '' ? parseInt(req.body.duration_days) : (existing ? existing.duration_days : 30);
+
+  let rawTitle = req.body.title !== undefined ? req.body.title : '';
+  if (rawTitle === 'undefined' || rawTitle === 'null') rawTitle = '';
+  const titleVal = String(rawTitle).trim() || ('VIP ' + daysVal + ' ថ្ងៃ');
+
+  let qrImg = existing ? existing.qr_image : '/storage/logo/logo.png';
+  if (req.file) {
+    qrImg = '/storage/qrs/' + req.file.filename;
+  } else if (req.body.qr_image && typeof req.body.qr_image === 'string' && req.body.qr_image.startsWith('/')) {
+    qrImg = req.body.qr_image;
+  }
+
+  const desc = req.body.description !== undefined && req.body.description !== 'undefined' ? req.body.description : (existing ? existing.description : '');
+  const isActive = req.body.is_active !== undefined ? Boolean(parseInt(req.body.is_active) || req.body.is_active === 'true' || req.body.is_active === true) : true;
+
+  if (isUpdate) {
+    existing.title = titleVal;
+    existing.price = priceVal;
+    existing.duration_days = daysVal;
+    existing.description = desc;
+    existing.qr_image = qrImg;
+    existing.is_active = isActive;
+    writeDB(db);
+    return res.json({ message: 'បានកែប្រែគម្រោង VIP ជោគជ័យ!', plan: existing });
+  } else {
+    const newPlan = {
+      id: Date.now(),
+      title: titleVal,
+      price: priceVal,
+      duration_days: daysVal,
+      description: desc,
+      qr_image: qrImg,
+      is_active: isActive
+    };
+    db.vip_plans = db.vip_plans || [];
+    db.vip_plans.push(newPlan);
+    writeDB(db);
+    return res.json({ message: 'បានបង្កើតគម្រោង VIP ថ្មីជោគជ័យ!', plan: newPlan });
+  }
+};
+
+router.post('/data/vip-plans', uploadQr.single('qr_image'), handleSaveVipPlan);
+router.post('/data/vip-plans/:id', uploadQr.single('qr_image'), handleSaveVipPlan);
+router.put('/data/vip-plans/:id', uploadQr.single('qr_image'), handleSaveVipPlan);
+
 router.delete('/data/vip-plans/:id', (req, res) => {
   const db = readDB();
   db.vip_plans = (db.vip_plans || []).filter(p => p.id !== parseInt(req.params.id));
