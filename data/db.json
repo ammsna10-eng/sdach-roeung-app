@@ -78,10 +78,6 @@
       "name": "Drama / រឿងភាគ"
     },
     {
-      "id": 6,
-      "name": "Fantasy / ទេវកថា"
-    },
-    {
       "id": 1794333871507,
       "name": "Horror story / រឿងភ័យរន្ធក់"
     }
@@ -164,6 +160,41 @@
   ],
   "movies": [
     {
+      "id": 1794336244940,
+      "title_kh": "មន្តអាគមគ្រូស្នេហ៍",
+      "title_en": "Janur Ireng",
+      "slug": "janur-ireng",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9.1,
+      "poster_path": "https://i.ibb.co/FbsKstJW/IMG-20261101-124214-941.jpg",
+      "backdrop_path": "https://i.ibb.co/FbsKstJW/IMG-20261101-124214-941.jpg",
+      "trailer_url": "",
+      "video_url": "https://hugh.cdn.rumble.cloud/video/fwe2/3e/s8/2/G/S/1/6/GS16A.aaa.mp4",
+      "overview": "",
+      "language_type": "dub",
+      "release_year": 2025,
+      "runtime_minutes": "",
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": true,
+      "country_id": 1794333814374,
+      "genres": [
+        {
+          "id": 1794333871507,
+          "name": "Horror story / រឿងភ័យរន្ធក់"
+        },
+        {
+          "id": 4,
+          "name": "Mystery / អាថ៌កំបាំង"
+        }
+      ],
+      "comments": []
+    },
+    {
       "id": 1794333734356,
       "title_kh": "ដាក់គុកវិញ្ញាណ",
       "title_en": "Ghost in the Cell",
@@ -176,7 +207,7 @@
       "backdrop_path": "https://i.ibb.co/h1Wjjy1v/IMG-20261101-124214-548.jpg",
       "trailer_url": "",
       "video_url": "https://hugh.cdn.rumble.cloud/video/fww1/76/s8/2/Y/K/1/6/YK16A.aaa.mp4",
-      "overview": "ថាមពលដ៏អស្ចារ្យមួយមើលមិនឃើញមួយអ្នកទោសត្រូវសម្លាប់យ៉ាងឃោឃៅដោយក្រុមចោរ និងប៉ូលីសពុករលួយ អនុញ្ញាតឱ្យធ្វើការជាមួយគ្នាដើម្បីរស់រានមានជីវិតកើនឡើង។",
+      "overview": "",
       "language_type": "dub",
       "release_year": 2026,
       "status": "published",
@@ -193,74 +224,6 @@
         {
           "id": 1794333871507,
           "name": "Horror story / រឿងភ័យរន្ធក់"
-        }
-      ],
-      "comments": []
-    },
-    {
-      "id": 1,
-      "title_kh": "ចាប់ជាតិថ្មីកាត់ផ្តាច់ស្នេហ៍កន្លងក្រោយ",
-      "title_en": "Rebirth of Love",
-      "slug": "rebirth-of-love",
-      "type": "series",
-      "access_type": "paid",
-      "price": 0.5,
-      "rating": 9.5,
-      "poster_path": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop",
-      "backdrop_path": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&auto=format&fit=crop",
-      "trailer_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-      "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-      "overview": "រឿងរ៉ាវរបស់យុវជនម្នាក់ដែលបានទទួលឱកាសចាប់ជាតិជាថ្មី ដើម្បីកែប្រែជោគវាសនា...",
-      "language_type": "dub",
-      "release_year": 2025,
-      "status": "public",
-      "is_slider": true,
-      "is_popular": true,
-      "is_latest": true,
-      "is_dubbed": true,
-      "country_id": 1,
-      "genres": [
-        {
-          "id": 1,
-          "name": "Action"
-        },
-        {
-          "id": 2,
-          "name": "Comedy"
-        }
-      ],
-      "comments": []
-    },
-    {
-      "id": 2,
-      "title_kh": "ដាវផ្តាច់មេឃ",
-      "title_en": "Heaven Breaker Sword",
-      "slug": "heaven-breaker-sword",
-      "type": "movie",
-      "access_type": "paid",
-      "price": 0.5,
-      "rating": 9.8,
-      "poster_path": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop",
-      "backdrop_path": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop",
-      "trailer_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-      "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-      "overview": "ការប្រយុទ្ធដ៏អស្ចារ្យដើម្បីដណ្តើមដាវទេវតា...",
-      "language_type": "dub",
-      "release_year": 2025,
-      "status": "public",
-      "is_slider": true,
-      "is_popular": true,
-      "is_latest": true,
-      "is_dubbed": true,
-      "country_id": 1,
-      "genres": [
-        {
-          "id": 1,
-          "name": "Action"
-        },
-        {
-          "id": 6,
-          "name": "Fantasy"
         }
       ],
       "comments": []
