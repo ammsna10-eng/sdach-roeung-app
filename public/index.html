@@ -310,13 +310,16 @@
       <!-- TAB 4: PROFILE -->
       <section v-if="activeTab === 'profile'" class="space-y-6 max-w-xl mx-auto">
         <div class="p-6 rounded-3xl glass-card text-center space-y-4">
-          <div class="relative w-20 h-20 mx-auto rounded-full p-1 bg-gradient-to-tr from-amber-500 to-purple-600 shadow-xl">
-            <img :src="user.photo_url || '/storage/logo/logo.png'" alt="User" class="w-full h-full object-cover rounded-full">
+          <div class="relative w-20 h-20 mx-auto rounded-full p-1 bg-gradient-to-tr from-amber-500 to-purple-600 shadow-xl flex items-center justify-center">
+            <img v-if="user.photo_url" :src="user.photo_url" :alt="user.first_name" class="w-full h-full object-cover rounded-full">
+            <div v-else class="w-full h-full rounded-full bg-[#1e1736] flex items-center justify-center text-2xl font-black text-amber-400 font-mono shadow-inner">
+              {{ (user.first_name || 'U').charAt(0).toUpperCase() }}
+            </div>
             <span v-if="user.is_vip" class="absolute bottom-0 right-0 text-xl">👑</span>
           </div>
           <div>
             <h3 class="text-lg font-bold text-white">{{ user.first_name }} {{ user.last_name || '' }}</h3>
-            <p class="text-xs text-amber-400 font-mono">@{{ user.username || 'user' }} • ID: {{ user.id }}</p>
+            <p class="text-xs text-amber-400 font-mono"><span v-if="user.username">@{{ user.username }} • </span>ID: {{ user.id }}</p>
           </div>
 
           <div class="grid grid-cols-2 gap-3 pt-2">

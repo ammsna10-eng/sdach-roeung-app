@@ -22,7 +22,7 @@
       "first_name": "SnA",
       "last_name": "",
       "username": "AmmSnA",
-      "photo_url": "/storage/logo/logo.png",
+      "photo_url": null,
       "wallet_balance": 4,
       "is_vip": false,
       "vip_expires_at": null,
@@ -90,33 +90,33 @@
   "topup_packages": [
     {
       "id": 1,
-      "title": "កញ្ចប់ 1$ (ទទួលបាន 1.00$)",
+      "title": "កញ្ចប់ 0.50$ (ទទួលបាន 0.50$)",
+      "price": 0.5,
+      "balance_amount": 0.5,
+      "qr_image": "/storage/logo/logo.png",
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "title": "កញ្ចប់ 1.00$ (ទទួលបាន 1.00$)",
       "price": 1,
       "balance_amount": 1,
       "qr_image": "/storage/logo/logo.png",
       "is_active": true
     },
     {
-      "id": 2,
-      "title": "កញ្ចប់ 3$ (ថែម 0.50$ = 3.50$)",
+      "id": 3,
+      "title": "កញ្ចប់ 3.00$ (ថែម 0.50$ = 3.50$)",
       "price": 3,
       "balance_amount": 3.5,
       "qr_image": "/storage/logo/logo.png",
       "is_active": true
     },
     {
-      "id": 3,
-      "title": "កញ្ចប់ 5$ (ថែម 1.00$ = 6.00$)",
+      "id": 4,
+      "title": "កញ្ចប់ 5.00$ (ថែម 1.00$ = 6.00$)",
       "price": 5,
       "balance_amount": 6,
-      "qr_image": "/storage/logo/logo.png",
-      "is_active": true
-    },
-    {
-      "id": 4,
-      "title": "កញ្ចប់ 10$ (ថែម 3.00$ = 13.00$)",
-      "price": 10,
-      "balance_amount": 13,
       "qr_image": "/storage/logo/logo.png",
       "is_active": true
     }

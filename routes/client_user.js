@@ -38,7 +38,7 @@ router.post('/telegram-login', (req, res) => {
       first_name: telegramUser.first_name || 'User',
       last_name: telegramUser.last_name || '',
       username: telegramUser.username || '',
-      photo_url: telegramUser.photo_url || '/storage/logo/logo.png',
+      photo_url: telegramUser.photo_url || null,
       wallet_balance: 0.0,
       is_vip: false,
       vip_expires_at: null,
@@ -47,6 +47,26 @@ router.post('/telegram-login', (req, res) => {
     };
     db.users.push(user);
     writeDB(db);
+  } else {
+    // Update live profile info from Telegram (photo, names, username)
+    let updated = false;
+    if (telegramUser.first_name && user.first_name !== telegramUser.first_name) {
+      user.first_name = telegramUser.first_name;
+      updated = true;
+    }
+    if (telegramUser.last_name !== undefined && user.last_name !== telegramUser.last_name) {
+      user.last_name = telegramUser.last_name;
+      updated = true;
+    }
+    if (telegramUser.username !== undefined && user.username !== telegramUser.username) {
+      user.username = telegramUser.username;
+      updated = true;
+    }
+    if (telegramUser.photo_url && user.photo_url !== telegramUser.photo_url) {
+      user.photo_url = telegramUser.photo_url;
+      updated = true;
+    }
+    if (updated) writeDB(db);
   }
 
   res.json({
