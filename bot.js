@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const WEBAPP_URL = process.env.WEBAPP_URL || 'http://localhost:3000';
+const WEBAPP_URL = process.env.WEBAPP_URL || 'https://sdach-roeung-app.onrender.com';
 
 if (!BOT_TOKEN) {
   console.log('⚠️  Notice: BOT_TOKEN is not set in .env file.');
