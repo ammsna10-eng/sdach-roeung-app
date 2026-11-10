@@ -310,15 +310,27 @@
       <!-- TAB 4: PROFILE -->
       <section v-if="activeTab === 'profile'" class="space-y-6 max-w-xl mx-auto">
         <div class="p-6 rounded-3xl glass-card text-center space-y-4">
-          <!-- Avatar with Dynamic VIP Hologram/Rainbow Glow Frame -->
-          <div :class="user.is_vip ? 'vip-frame w-24 h-24' : 'w-20 h-20 p-1 bg-gradient-to-tr from-amber-500 to-purple-600'" class="relative mx-auto rounded-full shadow-xl flex items-center justify-center transition-all duration-500">
-            <img v-if="user.photo_url" :src="user.photo_url" :alt="user.first_name" class="w-full h-full object-cover rounded-full ring-2 ring-black">
-            <div v-else class="w-full h-full rounded-full bg-[#1e1736] flex items-center justify-center text-2xl font-black text-amber-400 font-mono shadow-inner ring-2 ring-black">
-              {{ (user.first_name || 'U').charAt(0).toUpperCase() }}
+          <!-- Avatar with 🐉 3D Golden Dragon Orbit & Fire Breath Frame -->
+          <div class="relative mx-auto w-24 h-24 flex items-center justify-center">
+            
+            <!-- 🐉 Golden Dragon Orbiting Around (Active for VIP) -->
+            <div v-if="user.is_vip" class="vip-dragon-track">
+              <span class="vip-dragon-head">🐉</span>
+              <span class="vip-dragon-flame">🔥</span>
             </div>
-            <!-- VIP Glowing Floating Crown -->
-            <span v-if="user.is_vip" class="absolute -top-3 -right-2 text-2xl filter drop-shadow animate-bounce">👑</span>
+
+            <!-- Profile Avatar Circle -->
+            <div :class="user.is_vip ? 'vip-frame w-20 h-20' : 'w-20 h-20 p-1 bg-gradient-to-tr from-amber-500 to-purple-600'" class="rounded-full shadow-xl flex items-center justify-center transition-all duration-500">
+              <img v-if="user.photo_url" :src="user.photo_url" :alt="user.first_name" class="w-full h-full object-cover rounded-full ring-2 ring-black">
+              <div v-else class="w-full h-full rounded-full bg-[#1e1736] flex items-center justify-center text-2xl font-black text-amber-400 font-mono shadow-inner ring-2 ring-black">
+                {{ (user.first_name || 'U').charAt(0).toUpperCase() }}
+              </div>
+            </div>
+
+            <!-- VIP Floating Crown -->
+            <span v-if="user.is_vip" class="absolute -top-2 right-1 text-2xl filter drop-shadow animate-bounce z-30">👑</span>
           </div>
+
           <div>
             <div class="flex items-center justify-center gap-1.5">
               <h3 class="text-lg font-bold text-white">{{ user.first_name }} {{ user.last_name || '' }}</h3>
@@ -549,11 +561,6 @@
         <p class="text-[11px] text-slate-400 leading-relaxed">
           💡 សម្រាប់ទូរស័ព្ទដៃ៖ ចុច «រក្សាទុក QR» រួចចូល App ABA/Bakong ចុចស្កេន ដោយជ្រើសរើសរូបភាពពី Gallery ជាការស្រេច!
         </p>
-
-        <!-- Send slip to Admin direct button in QR modal -->
-        <a :href="adminTelegramLink" target="_blank" class="block w-full py-2 px-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-blue-300 font-bold text-xs transition-all">
-          💬 ផ្ញើស្លីបវិក្កយបត្រទៅកាន់ Admin
-        </a>
 
         <button @click="isQrModalOpen = false; showNotify('សំណើបានផ្ញើទៅ Admin រួចរាល់!', 'success')" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-xs shadow-lg active:scale-95">
           ខ្ញុំបានបង់ប្រាក់រួចរាល់
