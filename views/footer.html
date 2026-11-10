@@ -1,0 +1,49 @@
+    <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
+    <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex flex-col justify-center items-center">
+      <div class="relative w-full max-w-4xl aspect-video bg-black flex items-center justify-center">
+        <video id="sdach-video-player" :src="activeStreamUrl" controls autoplay class="w-full h-full object-contain"></video>
+        <button @click="isPlayerOpen = false" class="absolute top-4 right-4 z-20 px-3.5 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95">
+          ✕ បិទវីដេអូ
+        </button>
+      </div>
+    </div>
+
+    <!-- 💳 TOPUP / VIP QR MODAL -->
+    <div v-if="isQrModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
+      <div class="relative w-full max-w-sm rounded-3xl bg-[#120a21] border border-amber-500/30 p-6 text-center space-y-4 shadow-2xl">
+        <button @click="isQrModalOpen = false" class="absolute top-4 right-4 text-slate-400 hover:text-white text-sm font-bold">✕</button>
+        <h3 class="text-lg font-bold text-white">{{ qrModalData.title }}</h3>
+        
+        <div class="w-56 h-56 mx-auto rounded-2xl bg-white p-2.5 shadow-xl flex items-center justify-center">
+          <img :src="qrModalData.qr" alt="KHQR" class="w-full h-full object-contain">
+        </div>
+
+        <div class="text-sm font-mono text-amber-300 font-bold">
+          ចំនួនទឹកប្រាក់៖ ${{ (qrModalData.amount || 0).toFixed(2) }}
+        </div>
+        <p class="text-xs text-slate-400">សូមស្កេនទូទាត់តាម KHQR / Bakong / ABA ដើម្បីបញ្ចូលប្រាក់</p>
+
+        <!-- Send slip to Admin direct button in QR modal -->
+        <a :href="adminTelegramLink" target="_blank" class="block w-full py-2 px-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-blue-300 font-bold text-xs transition-all">
+          💬 ផ្ញើស្លីបវិក្កយបត្រទៅកាន់ Admin
+        </a>
+
+        <button @click="isQrModalOpen = false; showNotify('សំណើបានផ្ញើទៅ Admin រួចរាល់!', 'success')" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-xs shadow-lg active:scale-95">
+          ខ្ញុំបានបង់ប្រាក់រួចរាល់
+        </button>
+      </div>
+    </div>
+
+    <!-- 🔔 TOAST NOTIFICATION -->
+    <div v-if="notification.show" class="fixed top-5 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+      <div :class="notification.type === 'success' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'" class="px-5 py-2.5 rounded-2xl font-bold text-xs shadow-2xl transition-all">
+        {{ notification.message }}
+      </div>
+    </div>
+
+  </div> <!-- End #app -->
+
+  <!-- App Script -->
+  <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+    <!-- 🌟 MAIN CONTENT CONTAINER -->
+    <main class="max-w-6xl mx-auto px-4 pt-4 pb-8">
+      
+      <!-- TAB 1: HOME PAGE -->
+      <section v-if="activeTab === 'home'" class="space-y-6">
+        
+        <!-- Hero Spotlight Carousel -->
+        <div v-if="sliderMovies.length > 0" class="relative rounded-3xl overflow-hidden aspect-[16/10] sm:aspect-[21/9] bg-gradient-to-t from-black via-transparent to-transparent border border-amber-500/20 shadow-2xl">
+          <img :src="sliderMovies[currentSlide]?.backdrop_path || sliderMovies[currentSlide]?.poster_path" :alt="sliderMovies[currentSlide]?.title_kh" class="w-full h-full object-cover transition-all duration-700">
+          <div class="absolute inset-0 bg-gradient-to-t from-[#08060e] via-[#08060e]/50 to-transparent"></div>
+          
+          <!-- Spotlight Details -->
+          <div class="absolute bottom-0 inset-x-0 p-4 sm:p-8 flex flex-col justify-end space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-md">🔥 កំពុងពេញនិយម</span>
+              <span class="text-xs text-amber-300 font-bold flex items-center gap-1">⭐ {{ sliderMovies[currentSlide]?.rating || '9.5' }}</span>
+              <span class="text-xs text-slate-300">| {{ sliderMovies[currentSlide]?.release_year || '2025' }}</span>
+            </div>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-white leading-tight drop-shadow-md">{{ sliderMovies[currentSlide]?.title_kh }}</h2>
+            <p class="text-xs sm:text-sm text-slate-300 line-clamp-2 max-w-xl">{{ sliderMovies[currentSlide]?.overview }}</p>
+            
+            <div class="pt-2 flex items-center gap-3">
+              <button @click="openMovie(sliderMovies[currentSlide])" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-black font-extrabold text-xs sm:text-sm shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                <span>▶️ ទស្សនាឥឡូវនេះ</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Carousel Dots -->
+          <div class="absolute top-4 right-4 flex gap-1.5">
+            <span v-for="(m, i) in sliderMovies" :key="i" @click="currentSlide = i" :class="currentSlide === i ? 'w-6 bg-amber-400' : 'w-2 bg-white/40'" class="h-1.5 rounded-full transition-all cursor-pointer"></span>
+          </div>
+        </div>
+
+        <!-- Section: Popular Movies Grid -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-4 rounded-full bg-amber-400"></span>
+              <h3 class="text-base sm:text-lg font-bold text-white tracking-wide">រឿងពេញនិយមប្រចាំសប្តាហ៍</h3>
+            </div>
+            <button @click="activeTab = 'movies'" class="text-xs text-amber-400 hover:text-amber-300 font-medium">មើលទាំងអស់ →</button>
+          </div>
+
+          <!-- Movies Card Grid (Responsive: 2 cols mobile, 3 tablet, 4 desktop) -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+            <div v-for="movie in popularMovies" :key="movie.id" @click="openMovie(movie)" class="group relative rounded-2xl overflow-hidden glass-card cursor-pointer flex flex-col">
+              <!-- Poster Image Container -->
+              <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-900">
+                <img :src="movie.poster_path" :alt="movie.title_kh" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy">
+                
+                <!-- Price Badge -->
+                <div class="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-md border border-amber-500/40 text-[11px] font-black text-amber-300 shadow">
+                  ${{ (movie.price || 0.5).toFixed(2) }}
+                </div>
+
+                <!-- Rating & Format Badges -->
+                <div class="absolute bottom-2 left-2 flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[10px] font-bold text-yellow-400">⭐ {{ movie.rating || '9.5' }}</span>
+                  <span v-if="movie.is_dubbed" class="px-1.5 py-0.5 rounded bg-amber-500/80 backdrop-blur-md text-[10px] font-bold text-black">សំឡេងខ្មែរ</span>
+                </div>
+              </div>
+
+              <!-- Movie Titles -->
+              <div class="p-2.5 sm:p-3 flex-1 flex flex-col justify-between space-y-1">
+                <h4 class="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1 leading-snug">{{ movie.title_kh }}</h4>
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>{{ movie.type === 'series' ? 'រឿងភាគ' : 'រឿងទោល' }}</span>
+                  <span class="text-amber-300/90 font-mono font-medium">{{ movie.release_year || '2025' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>

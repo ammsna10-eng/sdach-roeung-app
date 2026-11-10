@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="km" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ស្ដេចរឿង - Cinema Mini App</title>
+  <link rel="icon" type="image/png" href="/storage/logo/logo.png">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Kantumruy+Pro:wght@300;400;500;600;700;800&family=Koulen&family=Siemreap&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              gold: '#f59e0b',
+              amber: '#d97706',
+              dark: '#08060e',
+              surface: '#120d1f',
+              card: '#181228',
+              border: 'rgba(251, 191, 36, 0.15)'
+            }
+          },
+          fontFamily: {
+            sans: ['"Battambang"', '"Kantumruy Pro"', '"Siemreap"', '-apple-system', 'sans-serif'],
+            display: ['"Koulen"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="bg-[#08060e] text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-black min-h-screen pb-24 overflow-x-hidden">
+  <div id="app" v-cloak class="relative min-h-screen">

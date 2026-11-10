@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="km" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ស្ដេចរឿង - Cinema Mini App</title>
+  <link rel="icon" type="image/png" href="/storage/logo/logo.png">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Kantumruy+Pro:wght@300;400;500;600;700;800&family=Koulen&family=Siemreap&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              gold: '#f59e0b',
+              amber: '#d97706',
+              dark: '#08060e',
+              surface: '#120d1f',
+              card: '#181228',
+              border: 'rgba(251, 191, 36, 0.15)'
+            }
+          },
+          fontFamily: {
+            sans: ['"Battambang"', '"Kantumruy Pro"', '"Siemreap"', '-apple-system', 'sans-serif'],
+            display: ['"Koulen"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body class="bg-[#08060e] text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-black min-h-screen pb-24 overflow-x-hidden">
+  <div id="app" v-cloak class="relative min-h-screen">
+
+    <!-- 👑 Top Luxury Header -->
+    <header class="sticky top-0 z-40 bg-[#0c0817]/80 backdrop-blur-xl border-b border-amber-500/15 transition-all">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <!-- Brand Identity -->
+        <div class="flex items-center gap-3 cursor-pointer" @click="activeTab = 'home'">
+          <div class="relative w-11 h-11 rounded-2xl overflow-hidden ring-2 ring-amber-500/50 p-0.5 bg-gradient-to-tr from-amber-500/40 via-purple-600/30 to-amber-400/40 shadow-lg shadow-amber-500/25">
+            <img src="/storage/logo/logo_clean.png" alt="Sdach Roeung" class="w-full h-full object-contain rounded-xl">
+          </div>
+          <div>
+            <h1 class="text-lg md:text-xl font-display tracking-wide font-black gold-gradient-text leading-tight drop-shadow">ស្ដេចរឿង</h1>
+            <p class="text-[10px] text-amber-400/80 font-medium tracking-wider uppercase">Kingdom of Cinema</p>
+          </div>
+        </div>
+
+        <!-- Right Side: Contact Support + Wallet + VIP -->
+        <div class="flex items-center gap-2">
+          <!-- Contact Admin Support Button (Header) -->
+          <a :href="adminTelegramLink" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/20 hover:bg-blue-500/35 border border-blue-400/40 text-blue-300 font-bold text-xs shadow-md transition-all active:scale-95 group">
+            <span class="text-sm">💬</span>
+            <span class="hidden sm:inline">ទាក់ទង Admin</span>
+            <span class="sm:hidden">ជំនួយ</span>
+          </a>
+
+          <!-- Balance Pill -->
+          <div @click="activeTab = 'wallet'" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-purple-900/30 to-amber-500/15 border border-amber-500/30 cursor-pointer hover:border-amber-400 transition-all shadow-md group">
+            <span class="text-base">💳</span>
+            <span class="text-xs font-bold text-amber-300 font-mono tracking-tight">${{ (user.wallet_balance || 0).toFixed(2) }}</span>
+            <span class="text-[10px] bg-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full group-hover:scale-105 transition-transform">+</span>
+          </div>
+
+          <!-- VIP Crown Badge -->
+          <button @click="activeTab = 'wallet'" class="relative p-2 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 text-black font-bold shadow-lg shadow-amber-500/25 hover:brightness-110 active:scale-95 transition-all">
+            <span class="text-base">👑</span>
+            <span v-if="user.is_vip" class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-black animate-ping"></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 🌟 MAIN CONTENT CONTAINER -->
+    <main class="max-w-6xl mx-auto px-4 pt-4 pb-8">
+      
+      <!-- TAB 1: HOME PAGE -->
+      <section v-if="activeTab === 'home'" class="space-y-6">
+        
+        <!-- Hero Spotlight Carousel -->
+        <div v-if="sliderMovies.length > 0" class="relative rounded-3xl overflow-hidden aspect-[16/10] sm:aspect-[21/9] bg-gradient-to-t from-black via-transparent to-transparent border border-amber-500/20 shadow-2xl">
+          <img :src="sliderMovies[currentSlide]?.backdrop_path || sliderMovies[currentSlide]?.poster_path" :alt="sliderMovies[currentSlide]?.title_kh" class="w-full h-full object-cover transition-all duration-700">
+          <div class="absolute inset-0 bg-gradient-to-t from-[#08060e] via-[#08060e]/50 to-transparent"></div>
+          
+          <!-- Spotlight Details -->
+          <div class="absolute bottom-0 inset-x-0 p-4 sm:p-8 flex flex-col justify-end space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-md">🔥 កំពុងពេញនិយម</span>
+              <span class="text-xs text-amber-300 font-bold flex items-center gap-1">⭐ {{ sliderMovies[currentSlide]?.rating || '9.5' }}</span>
+              <span class="text-xs text-slate-300">| {{ sliderMovies[currentSlide]?.release_year || '2025' }}</span>
+            </div>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-white leading-tight drop-shadow-md">{{ sliderMovies[currentSlide]?.title_kh }}</h2>
+            <p class="text-xs sm:text-sm text-slate-300 line-clamp-2 max-w-xl">{{ sliderMovies[currentSlide]?.overview }}</p>
+            
+            <div class="pt-2 flex items-center gap-3">
+              <button @click="openMovie(sliderMovies[currentSlide])" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-black font-extrabold text-xs sm:text-sm shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                <span>▶️ ទស្សនាឥឡូវនេះ</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Carousel Dots -->
+          <div class="absolute top-4 right-4 flex gap-1.5">
+            <span v-for="(m, i) in sliderMovies" :key="i" @click="currentSlide = i" :class="currentSlide === i ? 'w-6 bg-amber-400' : 'w-2 bg-white/40'" class="h-1.5 rounded-full transition-all cursor-pointer"></span>
+          </div>
+        </div>
+
+        <!-- Section: Popular Movies Grid -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-4 rounded-full bg-amber-400"></span>
+              <h3 class="text-base sm:text-lg font-bold text-white tracking-wide">រឿងពេញនិយមប្រចាំសប្តាហ៍</h3>
+            </div>
+            <button @click="activeTab = 'movies'" class="text-xs text-amber-400 hover:text-amber-300 font-medium">មើលទាំងអស់ →</button>
+          </div>
+
+          <!-- Movies Card Grid (Responsive: 2 cols mobile, 3 tablet, 4 desktop) -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+            <div v-for="movie in popularMovies" :key="movie.id" @click="openMovie(movie)" class="group relative rounded-2xl overflow-hidden glass-card cursor-pointer flex flex-col">
+              <!-- Poster Image Container -->
+              <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-900">
+                <img :src="movie.poster_path" :alt="movie.title_kh" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy">
+                
+                <!-- Price Badge -->
+                <div class="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-md border border-amber-500/40 text-[11px] font-black text-amber-300 shadow">
+                  ${{ (movie.price || 0.5).toFixed(2) }}
+                </div>
+
+                <!-- Rating & Format Badges -->
+                <div class="absolute bottom-2 left-2 flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[10px] font-bold text-yellow-400">⭐ {{ movie.rating || '9.5' }}</span>
+                  <span v-if="movie.is_dubbed" class="px-1.5 py-0.5 rounded bg-amber-500/80 backdrop-blur-md text-[10px] font-bold text-black">សំឡេងខ្មែរ</span>
+                </div>
+              </div>
+
+              <!-- Movie Titles -->
+              <div class="p-2.5 sm:p-3 flex-1 flex flex-col justify-between space-y-1">
+                <h4 class="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1 leading-snug">{{ movie.title_kh }}</h4>
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>{{ movie.type === 'series' ? 'រឿងភាគ' : 'រឿងទោល' }}</span>
+                  <span class="text-amber-300/90 font-mono font-medium">{{ movie.release_year || '2025' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- TAB 2: MOVIES CATALOG (New Filter Layout) -->
+      <section v-if="activeTab === 'movies'" class="space-y-4">
+        
+        <!-- Search & Filter Header -->
+        <div class="space-y-3">
+          <!-- Custom Search Bar -->
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">🔍</span>
+            <input type="text" v-model="searchQuery" placeholder="ស្វែងរកចំណងជើងរឿង ឬឈ្មោះតួអង្គ..." class="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#140e24] border border-amber-500/20 text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all shadow-inner">
+          </div>
+
+          <!-- Genre Filter Pills -->
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            <button v-for="g in genres" :key="g.id" @click="selectedGenre = g.id" :class="selectedGenre === g.id ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-bold shadow-md shadow-amber-500/20' : 'bg-[#140e24] text-slate-300 border border-amber-500/20 hover:border-amber-400/40'" class="shrink-0 px-3 py-1.5 rounded-xl text-xs transition-all active:scale-95">
+              {{ g.name }}
+            </button>
+          </div>
+
+          <!-- Dub / Sub Toggle -->
+          <div class="flex items-center gap-2">
+            <button @click="selectedLanguage = 'all'" :class="selectedLanguage === 'all' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">ទាំងអស់</button>
+            <button @click="selectedLanguage = 'dubbed'" :class="selectedLanguage === 'dubbed' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">🎙️ បញ្ចូលសំឡេងខ្មែរ</button>
+            <button @click="selectedLanguage = 'sub'" :class="selectedLanguage === 'sub' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">💬 អក្សររត់ខ្មែរ (Sub)</button>
+          </div>
+        </div>
+
+        <!-- Filtered Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 pt-2">
+          <div v-for="movie in filteredMovies" :key="movie.id" @click="openMovie(movie)" class="group relative rounded-2xl overflow-hidden glass-card cursor-pointer flex flex-col">
+            <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-900">
+              <img :src="movie.poster_path" :alt="movie.title_kh" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+              <div class="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 border border-amber-500/40 text-[11px] font-black text-amber-300">
+                ${{ (movie.price || 0.5).toFixed(2) }}
+              </div>
+              <div class="absolute bottom-2 left-2 flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold text-yellow-400">⭐ {{ movie.rating || '9.5' }}</span>
+              </div>
+            </div>
+            <div class="p-2.5 sm:p-3 flex-1 flex flex-col justify-between">
+              <h4 class="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1">{{ movie.title_kh }}</h4>
+              <p class="text-[11px] text-slate-400 mt-1">{{ movie.type === 'series' ? 'រឿងភាគ' : 'រឿងទោល' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div v-if="filteredMovies.length === 0" class="py-16 text-center text-slate-400 space-y-2">
+          <span class="text-4xl">🍿</span>
+          <p class="text-sm">មិនមានរឿងដែលអ្នកកំពុងស្វែងរកឡើយ</p>
+        </div>
+
+      </section>
+
+      <!-- TAB 3: WALLET & VIP PLANS (Luxury 3D Member Card) -->
+      <section v-if="activeTab === 'wallet'" class="space-y-6">
+        
+        <!-- 3D Luxury VIP Member Card -->
+        <div class="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-tr from-[#1a122e] via-[#2d1b4e] to-[#120a21] border border-amber-500/30 shadow-2xl shadow-amber-500/10">
+          <!-- Card Accents -->
+          <div class="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-amber-500/10 blur-2xl"></div>
+          <div class="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-purple-500/15 blur-xl"></div>
+          
+          <div class="relative z-10 flex flex-col justify-between h-44 sm:h-48">
+            <div class="flex items-start justify-between">
+              <div>
+                <span class="text-[10px] uppercase font-bold tracking-widest text-amber-400/90">VIP Member Card</span>
+                <h3 class="text-xl sm:text-2xl font-black text-white gold-gradient-text tracking-wide">ស្ដេចរឿង PASS</h3>
+              </div>
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-xl shadow">👑</div>
+            </div>
+
+            <!-- Balance Display -->
+            <div class="space-y-1">
+              <span class="text-xs text-slate-300">សមតុល្យកាបូប (Wallet Balance)</span>
+              <div class="text-3xl sm:text-4xl font-extrabold text-amber-300 font-mono tracking-tight">
+                ${{ (user.wallet_balance || 0).toFixed(2) }}
+              </div>
+            </div>
+
+            <!-- Card Footer -->
+            <div class="flex items-center justify-between text-xs text-slate-300 border-t border-white/10 pt-2 font-mono">
+              <span>{{ user.first_name }} (@{{ user.username || 'user' }})</span>
+              <span :class="user.is_vip ? 'text-emerald-400 font-bold' : 'text-amber-400'">{{ user.is_vip ? 'VIP ACTIVE' : 'STANDARD' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Topup Packages -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-amber-400"></span>
+            <h3 class="text-base font-bold text-white">កញ្ចប់បញ្ចូលប្រាក់ (Top-up Packages)</h3>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div v-for="pkg in topupPackages" :key="pkg.id" @click="openTopup(pkg)" class="p-4 rounded-2xl glass-card cursor-pointer border border-amber-500/20 hover:border-amber-400 flex flex-col justify-between text-center group active:scale-95">
+              <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">💵</span>
+              <div class="text-lg font-black text-white font-mono">${{ pkg.price.toFixed(2) }}</div>
+              <div class="text-[11px] text-amber-400 font-bold mt-1">ថែម ${{ (pkg.balance_amount - pkg.price).toFixed(2) }}</div>
+              <button class="mt-3 py-1.5 px-3 rounded-xl bg-amber-500/20 group-hover:bg-amber-500 text-amber-300 group-hover:text-black font-bold text-xs transition-all">
+                បញ្ចូលឥឡូវ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIP Unlimited Plans -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-amber-400"></span>
+            <h3 class="text-base font-bold text-white">គម្រោងសមាជិក VIP (មើលឥតដែនកំណត់)</h3>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div v-for="plan in vipPlans" :key="plan.id" @click="openVip(plan)" class="p-5 rounded-2xl glass-card cursor-pointer border border-amber-500/25 hover:border-amber-400 flex flex-col justify-between group active:scale-95">
+              <div class="flex items-start justify-between">
+                <div>
+                  <h4 class="font-bold text-white text-base">{{ plan.title }}</h4>
+                  <p class="text-xs text-slate-400 mt-1 line-clamp-2">{{ plan.description }}</p>
+                </div>
+                <span class="text-2xl">👑</span>
+              </div>
+              <div class="mt-4 flex items-baseline justify-between">
+                <span class="text-2xl font-black text-amber-300 font-mono">${{ plan.price.toFixed(2) }}</span>
+                <button class="py-1.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-xs shadow hover:scale-105 transition-all">
+                  ជាវ VIP
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Support Help Banner in Wallet -->
+        <div class="p-4 rounded-2xl bg-gradient-to-r from-blue-900/30 via-indigo-900/20 to-blue-900/30 border border-blue-500/30 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <span class="text-2xl">💬</span>
+            <div>
+              <h4 class="text-xs font-bold text-white">ជួបបញ្ហាក្នុងការបញ្ចូលប្រាក់?</h4>
+              <p class="text-[10px] text-blue-300">ផ្ញើស្លីបវិក្កយបត្រទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ</p>
+            </div>
+          </div>
+          <a :href="adminTelegramLink" target="_blank" class="px-3.5 py-1.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-black font-extrabold text-[11px] transition-all shrink-0">
+            ទាក់ទង Admin
+          </a>
+        </div>
+
+      </section>
+
+      <!-- TAB 4: PROFILE -->
+      <section v-if="activeTab === 'profile'" class="space-y-6 max-w-xl mx-auto">
+        <div class="p-6 rounded-3xl glass-card text-center space-y-4">
+          <div class="relative w-20 h-20 mx-auto rounded-full p-1 bg-gradient-to-tr from-amber-500 to-purple-600 shadow-xl">
+            <img :src="user.photo_url || '/storage/logo/logo.png'" alt="User" class="w-full h-full object-cover rounded-full">
+            <span v-if="user.is_vip" class="absolute bottom-0 right-0 text-xl">👑</span>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-white">{{ user.first_name }} {{ user.last_name || '' }}</h3>
+            <p class="text-xs text-amber-400 font-mono">@{{ user.username || 'user' }} • ID: {{ user.id }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <div class="p-3 rounded-2xl bg-white/5 border border-white/10">
+              <span class="text-xs text-slate-400">សមតុល្យលុយ</span>
+              <div class="text-lg font-black text-amber-300 font-mono mt-0.5">${{ (user.wallet_balance || 0).toFixed(2) }}</div>
+            </div>
+            <div class="p-3 rounded-2xl bg-white/5 border border-white/10">
+              <span class="text-xs text-slate-400">ស្ថានភាពគណនី</span>
+              <div :class="user.is_vip ? 'text-emerald-400' : 'text-slate-300'" class="text-sm font-bold mt-1">{{ user.is_vip ? 'VIP Member' : 'Standard User' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 🎬 PURCHASED MOVIES SECTION (រឿងដែលបានទិញរួចរាល់) -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-4 rounded-full bg-amber-400"></span>
+              <h3 class="text-base font-bold text-white">រឿងដែលខ្ញុំបានទិញ (Purchased Movies)</h3>
+            </div>
+            <span class="text-xs font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              {{ purchasedMovies.length }} រឿង
+            </span>
+          </div>
+
+          <!-- Empty State when user hasn't bought any movies yet -->
+          <div v-if="purchasedMovies.length === 0" class="p-6 rounded-2xl bg-[#140e24] border border-white/10 text-center space-y-2">
+            <span class="text-3xl">🍿</span>
+            <p class="text-xs text-slate-300">អ្នកមិនទាន់បានទិញរឿងណាមួយនៅឡើយទេ</p>
+            <button @click="activeTab = 'movies'" class="mt-2 px-4 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black font-bold text-xs transition-all">
+              ទៅកាន់កាតាឡុកភាពយន្ត →
+            </button>
+          </div>
+
+          <!-- Purchased Movies List -->
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="movie in purchasedMovies" :key="movie.id" @click="openMovie(movie)" class="p-3 rounded-2xl glass-card cursor-pointer border border-amber-500/20 hover:border-amber-400 flex items-center gap-3 group transition-all">
+              <img :src="movie.poster_path" :alt="movie.title_kh" class="w-16 h-22 object-cover rounded-xl shadow shrink-0">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/40">✓ បានទិញ</span>
+                  <span class="text-[10px] text-amber-400 font-mono">⭐ {{ movie.rating || '9.5' }}</span>
+                </div>
+                <h4 class="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1 leading-snug">{{ movie.title_kh }}</h4>
+                <p class="text-[11px] text-slate-400 mt-0.5">{{ movie.type === 'series' ? 'រឿងភាគ' : 'រឿងទោល' }} • {{ movie.release_year || '2025' }}</p>
+                <div class="mt-2 flex items-center gap-2">
+                  <button @click.stop="playMovie(movie)" class="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-[11px] shadow hover:scale-105 active:scale-95 transition-all flex items-center gap-1">
+                    <span>▶️ ទស្សនា</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact Support Card in Profile -->
+        <div class="rounded-2xl glass-card p-4 space-y-2 border border-blue-500/25">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">💬</span>
+              <div>
+                <h4 class="text-sm font-bold text-white">ផ្នែកបម្រើអតិថិជន (Support 24/7)</h4>
+                <p class="text-[11px] text-slate-400">ជួបបញ្ហាបញ្ចូលលុយ ឬចង់សាកសួរព័ត៌មានផ្សេងៗ</p>
+              </div>
+            </div>
+          </div>
+          <a :href="adminTelegramLink" target="_blank" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
+            <span>💬 ឆាតទៅកាន់ Admin លើ Telegram</span>
+            <span>→</span>
+          </a>
+        </div>
+
+        <!-- Admin Dashboard Access (Visible only if user is Admin) -->
+        <div v-if="user.role === 'admin' || user.role === 'super_admin' || user.id === 924441299" class="rounded-2xl glass-card p-2 space-y-1 border border-amber-500/30">
+          <a href="/admin/login" target="_blank" class="flex items-center justify-between p-3.5 rounded-xl hover:bg-white/5 transition-all text-xs text-amber-300 font-bold">
+            <span class="flex items-center gap-3"><span>⚙️</span> ផ្ទាំងគ្រប់គ្រង Admin Dashboard</span>
+            <span>→</span>
+          </a>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 📱 Floating Bottom Navigation Bar (Responsive for all screen sizes) -->
+    <nav class="fixed bottom-3 inset-x-0 z-40 max-w-md mx-auto px-4 pointer-events-none">
+      <div class="pointer-events-auto bg-[#130d24]/90 backdrop-blur-2xl border border-amber-500/25 rounded-2xl p-1.5 shadow-2xl shadow-black/80 flex items-center justify-around ring-1 ring-white/5">
+        
+        <!-- Tab 1: Home -->
+        <button @click="activeTab = 'home'" :class="activeTab === 'home' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">🏠</span>
+          <span class="text-[11px] leading-none">ទំព័រដើម</span>
+        </button>
+
+        <!-- Tab 2: Movies Catalog -->
+        <button @click="activeTab = 'movies'" :class="activeTab === 'movies' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">🎬</span>
+          <span class="text-[11px] leading-none">ភាពយន្ត</span>
+        </button>
+
+        <!-- Tab 3: VIP & Wallet -->
+        <button @click="activeTab = 'wallet'" :class="activeTab === 'wallet' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">💳</span>
+          <span class="text-[11px] leading-none">កាបូប & VIP</span>
+        </button>
+
+        <!-- Tab 4: Profile -->
+        <button @click="activeTab = 'profile'" :class="activeTab === 'profile' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">👑</span>
+          <span class="text-[11px] leading-none">គណនី</span>
+        </button>
+
+      </div>
+    </nav>
+
+    <!-- 🎬 MOVIE DETAIL MODAL (Cinema Backdrop Immersion Design) -->
+    <div v-if="isDetailOpen && selectedMovie" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-xl transition-all">
+      <div class="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[#0e091b] border border-amber-500/25 shadow-2xl flex flex-col no-scrollbar">
+        
+        <!-- Backdrop Banner & Close Button -->
+        <div class="relative aspect-video w-full bg-slate-900">
+          <img :src="selectedMovie.backdrop_path || selectedMovie.poster_path" :alt="selectedMovie.title_kh" class="w-full h-full object-cover">
+          <div class="absolute inset-0 bg-gradient-to-t from-[#0e091b] via-[#0e091b]/40 to-transparent"></div>
+          
+          <button @click="isDetailOpen = false" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 backdrop-blur-md text-white flex items-center justify-center text-sm font-bold border border-white/20 active:scale-95 transition-all">✕</button>
+
+          <!-- Floating Play Trailer Button -->
+          <div class="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+            <div>
+              <span class="px-2 py-0.5 rounded bg-amber-500 text-black text-[10px] font-black uppercase">⭐ {{ selectedMovie.rating || '9.5' }}</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white mt-1 drop-shadow">{{ selectedMovie.title_kh }}</h3>
+            </div>
+            <button @click="playMovie(selectedMovie)" class="px-4 py-2 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95">
+              <span>▶️ Trailer</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Movie Details Body -->
+        <div class="p-5 sm:p-6 space-y-5">
+          <!-- Quick Meta Info -->
+          <div class="flex items-center gap-3 text-xs text-slate-300 border-b border-white/10 pb-3">
+            <span class="text-amber-400 font-bold font-mono">${{ (selectedMovie.price || 0.5).toFixed(2) }}</span>
+            <span>•</span>
+            <span>{{ selectedMovie.type === 'series' ? 'រឿងភាគ (Series)' : 'រឿងទោល (Movie)' }}</span>
+            <span>•</span>
+            <span>{{ selectedMovie.release_year || '2025' }}</span>
+            <span>•</span>
+            <span class="text-amber-300">{{ selectedMovie.is_dubbed ? 'សំឡេងខ្មែរ' : 'អក្សររត់' }}</span>
+          </div>
+
+          <!-- Overview Synopsis -->
+          <div>
+            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1.5">សេចក្តីសង្ខេប</h4>
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">{{ selectedMovie.overview }}</p>
+          </div>
+
+          <!-- Series Episodes Selector (If Series) -->
+          <div v-if="selectedMovie.type === 'series' && movieSeasons.length > 0" class="space-y-2">
+            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">ជ្រើសរើសភាគ (Episodes)</h4>
+            <div class="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              <button v-for="ep in movieSeasons[0]?.episodes || []" :key="ep.id" @click="playMovie(selectedMovie, ep)" class="py-2.5 rounded-xl bg-white/5 hover:bg-amber-500/20 border border-white/10 hover:border-amber-400/50 text-xs font-bold text-white transition-all active:scale-95 flex flex-col items-center">
+                <span>ភាគ {{ ep.episode_number }}</span>
+                <span class="text-[9px] text-amber-300/80 font-mono">${{ (ep.price || 0.25).toFixed(2) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Purchase Action Area -->
+          <div class="pt-2">
+            <div v-if="!isPurchased" class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-900/20 to-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+              <div>
+                <span class="text-[11px] text-slate-300">តម្លៃដោះសោទស្សនាពេញ</span>
+                <div class="text-xl font-black text-amber-300 font-mono">${{ (selectedMovie.price || 0.5).toFixed(2) }}</div>
+              </div>
+              <button @click="buyMovie(selectedMovie)" :disabled="isBuying" class="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-black font-extrabold text-xs sm:text-sm shadow-xl shadow-amber-500/25 active:scale-95 transition-all">
+                {{ isBuying ? 'កំពុងដំណើរការ...' : '🔓 ទិញរឿងនេះឥឡូវ' }}
+              </button>
+            </div>
+
+            <div v-else class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+              <span class="text-xs text-emerald-400 font-bold flex items-center gap-1.5">✓ បានដោះសោរួចរាល់ (Unlocked)</span>
+              <button @click="playMovie(selectedMovie)" class="px-5 py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold text-xs active:scale-95">
+                ▶️ ចាក់វីដេអូពេញ
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
+    <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex flex-col justify-center items-center">
+      <div class="relative w-full max-w-4xl aspect-video bg-black flex items-center justify-center">
+        <video id="sdach-video-player" :src="activeStreamUrl" controls autoplay class="w-full h-full object-contain"></video>
+        <button @click="isPlayerOpen = false" class="absolute top-4 right-4 z-20 px-3.5 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95">
+          ✕ បិទវីដេអូ
+        </button>
+      </div>
+    </div>
+
+    <!-- 💳 TOPUP / VIP QR MODAL -->
+    <div v-if="isQrModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
+      <div class="relative w-full max-w-sm rounded-3xl bg-[#120a21] border border-amber-500/30 p-6 text-center space-y-4 shadow-2xl">
+        <button @click="isQrModalOpen = false" class="absolute top-4 right-4 text-slate-400 hover:text-white text-sm font-bold">✕</button>
+        <h3 class="text-lg font-bold text-white">{{ qrModalData.title }}</h3>
+        
+        <div class="w-56 h-56 mx-auto rounded-2xl bg-white p-2.5 shadow-xl flex items-center justify-center">
+          <img :src="qrModalData.qr" alt="KHQR" class="w-full h-full object-contain">
+        </div>
+
+        <div class="text-sm font-mono text-amber-300 font-bold">
+          ចំនួនទឹកប្រាក់៖ ${{ (qrModalData.amount || 0).toFixed(2) }}
+        </div>
+        <p class="text-xs text-slate-400">សូមស្កេនទូទាត់តាម KHQR / Bakong / ABA ដើម្បីបញ្ចូលប្រាក់</p>
+
+        <!-- Send slip to Admin direct button in QR modal -->
+        <a :href="adminTelegramLink" target="_blank" class="block w-full py-2 px-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-blue-300 font-bold text-xs transition-all">
+          💬 ផ្ញើស្លីបវិក្កយបត្រទៅកាន់ Admin
+        </a>
+
+        <button @click="isQrModalOpen = false; showNotify('សំណើបានផ្ញើទៅ Admin រួចរាល់!', 'success')" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-xs shadow-lg active:scale-95">
+          ខ្ញុំបានបង់ប្រាក់រួចរាល់
+        </button>
+      </div>
+    </div>
+
+    <!-- 🔔 TOAST NOTIFICATION -->
+    <div v-if="notification.show" class="fixed top-5 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+      <div :class="notification.type === 'success' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'" class="px-5 py-2.5 rounded-2xl font-bold text-xs shadow-2xl transition-all">
+        {{ notification.message }}
+      </div>
+    </div>
+
+  </div> <!-- End #app -->
+
+  <!-- App Script -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
+

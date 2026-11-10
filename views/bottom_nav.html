@@ -1,0 +1,30 @@
+    <!-- 📱 Floating Bottom Navigation Bar (Responsive for all screen sizes) -->
+    <nav class="fixed bottom-3 inset-x-0 z-40 max-w-md mx-auto px-4 pointer-events-none">
+      <div class="pointer-events-auto bg-[#130d24]/90 backdrop-blur-2xl border border-amber-500/25 rounded-2xl p-1.5 shadow-2xl shadow-black/80 flex items-center justify-around ring-1 ring-white/5">
+        
+        <!-- Tab 1: Home -->
+        <button @click="activeTab = 'home'" :class="activeTab === 'home' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">🏠</span>
+          <span class="text-[11px] leading-none">ទំព័រដើម</span>
+        </button>
+
+        <!-- Tab 2: Movies Catalog -->
+        <button @click="activeTab = 'movies'" :class="activeTab === 'movies' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">🎬</span>
+          <span class="text-[11px] leading-none">ភាពយន្ត</span>
+        </button>
+
+        <!-- Tab 3: VIP & Wallet -->
+        <button @click="activeTab = 'wallet'" :class="activeTab === 'wallet' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">💳</span>
+          <span class="text-[11px] leading-none">កាបូប & VIP</span>
+        </button>
+
+        <!-- Tab 4: Profile -->
+        <button @click="activeTab = 'profile'" :class="activeTab === 'profile' ? 'text-amber-300 font-bold bg-amber-500/15 border-amber-500/40 shadow-inner' : 'text-slate-400 hover:text-slate-200'" class="flex-1 py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition-all border border-transparent active:scale-95">
+          <span class="text-xl">👑</span>
+          <span class="text-[11px] leading-none">គណនី</span>
+        </button>
+
+      </div>
+    </nav>

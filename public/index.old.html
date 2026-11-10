@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ស្ដេចរឿង - Sdach Roeung Mini App</title>
+    <link rel="icon" type="image/png" href="/storage/logo/logo.png">
+    
+    <!-- Google Fonts for Khmer -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Koulen&display=swap" rel="stylesheet">
+
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- Dev/Browser Testing Polyfill for Telegram WebApp -->
+    <script>
+      (function() {
+        if (!window.Telegram) window.Telegram = {};
+        if (!window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
+          var isRouteAdmin = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/super_admin');
+          if (!isRouteAdmin) {
+            window.Telegram.WebApp = {
+              initData: "user=%7B%22id%22%3A924441299%2C%22first_name%22%3A%22SnA%22%2C%22last_name%22%3A%22%22%2C%22username%22%3A%22AmmSnA%22%2C%22language_code%22%3A%22km%22%7D&auth_date=1794295094&hash=mock_local_dev_hash",
+              initDataUnsafe: {
+                user: {
+                  id: 924441299,
+                  first_name: "SnA",
+                  last_name: "",
+                  username: "AmmSnA",
+                  language_code: "km",
+                  photo_url: "/storage/logo/logo.png"
+                }
+              },
+              ready: function() {},
+              expand: function() {},
+              close: function() {},
+              requestFullscreen: function() {},
+              exitFullscreen: function() {},
+              HapticFeedback: {
+                impactOccurred: function() {},
+                notificationOccurred: function() {},
+                selectionChanged: function() {}
+              },
+              openLink: function(url) { window.open(url, '_blank'); },
+              openTelegramLink: function(url) { window.open(url, '_blank'); },
+              downloadFile: function(params, cb) {
+                var a = document.createElement('a');
+                a.href = params.url;
+                a.download = params.file_name || 'download';
+                a.click();
+                if (cb) cb(true);
+              }
+            };
+          }
+        }
+      })();
+    </script>
+
+    <!-- Stylesheets -->
+    <link rel="preload" as="style" href="/build/assets/app-7G2-9cHv.css" />
+    <link rel="preload" as="style" href="/build/assets/app-CuaRDF3w.css" />
+    <link rel="stylesheet" href="/build/assets/app-7G2-9cHv.css" />
+    <link rel="stylesheet" href="/build/assets/app-CuaRDF3w.css" />
+
+    <style>
+      body, button, input, textarea {
+        font-family: 'Kantumruy Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      }
+      
+      /* Quick navigation bar for development */
+      #dev-nav {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        z-index: 99999;
+        background: rgba(18, 14, 28, 0.9);
+        border-radius: 9999px;
+        padding: 5px 14px;
+        font-size: 11px;
+        color: #f59e0b;
+        display: flex;
+        gap: 8px;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      }
+      #dev-nav a {
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.2s;
+      }
+      #dev-nav a:hover {
+        color: #fbbf24;
+      }
+
+      /* 3D Top Navigation Bar Placement */
+      .custom-top-nav {
+        position: fixed !important;
+        top: 64px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: auto !important;
+        z-index: 45 !important;
+        display: flex !important;
+        justify-content: center !important;
+        padding: 0 12px !important;
+      }
+      @media (min-width: 768px) {
+        .custom-top-nav {
+          top: 68px !important;
+        }
+      }
+
+      /* 3D and Golden Shimmer Enhancements */
+      .custom-top-nav button {
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid transparent;
+      }
+      .custom-top-nav button:hover {
+        transform: translateY(-2px);
+      }
+      .custom-top-nav button:active {
+        transform: scale(0.95);
+      }
+      .custom-top-nav button.text-\[\#0B0706\] {
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%) !important;
+        color: #0b0706 !important;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
+        border: 1px solid rgba(251, 191, 36, 0.8) !important;
+        font-weight: 800 !important;
+      }
+
+      /* Top spacing for all pages to ensure no overlapping */
+      .tab-content-container {
+        padding-top: 75px !important;
+      }
+    </style>
+</head>
+<body class="bg-[#0b0914] text-white selection:bg-amber-500 selection:text-black">
+    <!-- Dev Helper Toolbar (moved to bottom right so it doesn't obstruct header) -->
+    <div id="dev-nav">
+      <span>👑 ស្ដេចរឿង:</span>
+      <a href="/">📱 Mini App</a>
+      <span>|</span>
+      <a href="/admin/login">⚙️ Admin</a>
+    </div>
+
+    <div id="app"></div>
+
+    <!-- Application Bundle -->
+    <script type="module" src="/build/assets/app-DkOyG5va.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,52 @@
+      <!-- TAB 2: MOVIES CATALOG (New Filter Layout) -->
+      <section v-if="activeTab === 'movies'" class="space-y-4">
+        
+        <!-- Search & Filter Header -->
+        <div class="space-y-3">
+          <!-- Custom Search Bar -->
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">🔍</span>
+            <input type="text" v-model="searchQuery" placeholder="ស្វែងរកចំណងជើងរឿង ឬឈ្មោះតួអង្គ..." class="w-full pl-10 pr-4 py-3 rounded-2xl bg-[#140e24] border border-amber-500/20 text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all shadow-inner">
+          </div>
+
+          <!-- Genre Filter Pills -->
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            <button v-for="g in genres" :key="g.id" @click="selectedGenre = g.id" :class="selectedGenre === g.id ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-bold shadow-md shadow-amber-500/20' : 'bg-[#140e24] text-slate-300 border border-amber-500/20 hover:border-amber-400/40'" class="shrink-0 px-3 py-1.5 rounded-xl text-xs transition-all active:scale-95">
+              {{ g.name }}
+            </button>
+          </div>
+
+          <!-- Dub / Sub Toggle -->
+          <div class="flex items-center gap-2">
+            <button @click="selectedLanguage = 'all'" :class="selectedLanguage === 'all' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">ទាំងអស់</button>
+            <button @click="selectedLanguage = 'dubbed'" :class="selectedLanguage === 'dubbed' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">🎙️ បញ្ចូលសំឡេងខ្មែរ</button>
+            <button @click="selectedLanguage = 'sub'" :class="selectedLanguage === 'sub' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">💬 អក្សររត់ខ្មែរ (Sub)</button>
+          </div>
+        </div>
+
+        <!-- Filtered Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 pt-2">
+          <div v-for="movie in filteredMovies" :key="movie.id" @click="openMovie(movie)" class="group relative rounded-2xl overflow-hidden glass-card cursor-pointer flex flex-col">
+            <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-900">
+              <img :src="movie.poster_path" :alt="movie.title_kh" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+              <div class="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 border border-amber-500/40 text-[11px] font-black text-amber-300">
+                ${{ (movie.price || 0.5).toFixed(2) }}
+              </div>
+              <div class="absolute bottom-2 left-2 flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold text-yellow-400">⭐ {{ movie.rating || '9.5' }}</span>
+              </div>
+            </div>
+            <div class="p-2.5 sm:p-3 flex-1 flex flex-col justify-between">
+              <h4 class="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1">{{ movie.title_kh }}</h4>
+              <p class="text-[11px] text-slate-400 mt-1">{{ movie.type === 'series' ? 'រឿងភាគ' : 'រឿងទោល' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div v-if="filteredMovies.length === 0" class="py-16 text-center text-slate-400 space-y-2">
+          <span class="text-4xl">🍿</span>
+          <p class="text-sm">មិនមានរឿងដែលអ្នកកំពុងស្វែងរកឡើយ</p>
+        </div>
+
+      </section>
