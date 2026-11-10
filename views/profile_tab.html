@@ -1,25 +1,27 @@
-      <!-- TAB 4: PROFILE -->
+﻿      <!-- TAB 4: PROFILE -->
       <section v-if="activeTab === 'profile'" class="space-y-6 max-w-xl mx-auto">
         <div class="p-6 rounded-3xl glass-card text-center space-y-4">
-          <!-- Avatar with 🐉 3D Golden Dragon Orbit & Fire Breath Frame -->
-          <div class="relative mx-auto w-24 h-24 flex items-center justify-center">
-            
-            <!-- 🐉 Golden Dragon Orbiting Around (Active for VIP) -->
-            <div v-if="user.is_vip" class="vip-dragon-track">
-              <span class="vip-dragon-head">🐉</span>
-              <span class="vip-dragon-flame">🔥</span>
-            </div>
+          <!-- Avatar with 👑 VIP Luxury Gold Frame & 3D Weaving Dragon -->
+          <div class="relative mx-auto w-24 h-24 flex items-center justify-center vip-3d-stage">
+
+            <!-- VIP Magic Golden Orbit Ring (Active for VIP) -->
+            <div v-if="user.is_vip" class="vip-magic-ring"></div>
 
             <!-- Profile Avatar Circle -->
-            <div :class="user.is_vip ? 'vip-frame w-20 h-20' : 'w-20 h-20 p-1 bg-gradient-to-tr from-amber-500 to-purple-600'" class="rounded-full shadow-xl flex items-center justify-center transition-all duration-500">
+            <div :class="user.is_vip ? 'vip-frame w-20 h-20' : 'w-20 h-20 p-1 bg-gradient-to-tr from-amber-500 to-purple-600'" class="relative z-10 rounded-full shadow-2xl flex items-center justify-center transition-all duration-500">
               <img v-if="user.photo_url" :src="user.photo_url" :alt="user.first_name" class="w-full h-full object-cover rounded-full ring-2 ring-black">
-              <div v-else class="w-full h-full rounded-full bg-[#1e1736] flex items-center justify-center text-2xl font-black text-amber-400 font-mono shadow-inner ring-2 ring-black">
+              <div v-else class="w-full h-full rounded-full bg-gradient-to-tr from-[#2d1b4e] to-[#1a122e] flex items-center justify-center text-2xl font-black text-amber-300 font-mono shadow-inner ring-2 ring-black">
                 {{ (user.first_name || 'U').charAt(0).toUpperCase() }}
               </div>
             </div>
 
-            <!-- VIP Floating Crown -->
-            <span v-if="user.is_vip" class="absolute -top-2 right-1 text-2xl filter drop-shadow animate-bounce z-30">👑</span>
+            <!-- 👑 3D VIP Floating Royal Crown on Top-Right -->
+            <span v-if="user.is_vip" class="vip-royal-crown">👑</span>
+
+            <!-- 🐉 Golden Eastern Dragon 3D Flying 360° Weaving (Front & Behind Avatar) -->
+            <div v-if="user.is_vip" class="vip-3d-dragon-flyer">
+              <img src="/storage/logo/dragon_3d.png" alt="3D Dragon">
+            </div>
           </div>
 
           <div>

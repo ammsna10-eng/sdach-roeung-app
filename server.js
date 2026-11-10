@@ -19,6 +19,8 @@ app.use('/api', require('./routes/client_user'));
 app.use('/api', require('./routes/client_movies'));
 app.use('/api', require('./routes/client_comments'));
 
+app.use('/api', require('./routes/aba_payment'));
+
 // Admin API routes
 app.use('/admin', require('./routes/admin'));
 

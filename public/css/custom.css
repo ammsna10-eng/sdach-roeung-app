@@ -1,4 +1,4 @@
-/* 👑 Sdach Roeung - Luxury Custom Styling & Animations */
+﻿/* 👑 Sdach Roeung - Luxury Custom Styling & Animations */
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
@@ -47,58 +47,139 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* VIP Golden Dragon Aura Frame & Orbit */
-@keyframes dragon-orbit {
+/* VIP Golden Royal Avatar Frame */
+@keyframes royal-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.6), 0 0 30px rgba(234, 88, 12, 0.3), inset 0 0 12px rgba(254, 240, 138, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(251, 191, 36, 0.9), 0 0 45px rgba(249, 115, 22, 0.5), inset 0 0 18px rgba(254, 240, 138, 0.8);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes royal-crown-float {
+  0%, 100% {
+    transform: translateY(0) rotate(6deg) scale(1);
+    filter: drop-shadow(0 2px 8px rgba(245, 158, 11, 0.8));
+  }
+  50% {
+    transform: translateY(-6px) rotate(-4deg) scale(1.12);
+    filter: drop-shadow(0 6px 16px rgba(251, 191, 36, 1)) drop-shadow(0 0 10px rgba(239, 68, 68, 0.7));
+  }
+}
+
+@keyframes gold-ring-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-@keyframes dragon-flame {
-  0%, 100% {
-    filter: drop-shadow(0 0 4px #f59e0b) drop-shadow(0 0 10px #ef4444);
-    transform: scale(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 8px #fbbf24) drop-shadow(0 0 18px #f97316);
-    transform: scale(1.18);
-  }
-}
-
 .vip-frame {
   position: relative;
-  padding: 3px;
+  padding: 3.5px;
   border-radius: 9999px;
-  background: linear-gradient(135deg, #f59e0b 0%, #b45309 50%, #fbbf24 100%);
-  box-shadow: 0 0 18px rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, #fef08a 0%, #f59e0b 35%, #b45309 70%, #fde047 100%);
+  animation: royal-pulse 3s ease-in-out infinite;
 }
 
-/* 🐉 Golden Dragon orbiting around profile */
-.vip-dragon-track {
+/* Rotating Golden Magic Ring */
+.vip-magic-ring {
   position: absolute;
-  inset: -12px;
+  inset: -6px;
   border-radius: 9999px;
+  border: 2px dashed rgba(251, 191, 36, 0.6);
+  animation: gold-ring-spin 12s linear infinite;
   pointer-events: none;
-  animation: dragon-orbit 5s linear infinite;
-  z-index: 20;
 }
 
-.vip-dragon-head {
+/* VIP Floating Crown */
+.vip-royal-crown {
   position: absolute;
-  top: -4px;
+  top: -14px;
+  right: -4px;
+  font-size: 28px;
+  line-height: 1;
+  z-index: 30;
+  animation: royal-crown-float 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   🐉 3D GOLDEN DRAGON 360° WEAVING & COILING ANIMATION
+   ========================================================================== */
+.vip-3d-stage {
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+
+/* 
+   3D Weaving Flight Keyframes:
+   The dragon flies 360° randomly weaving around the Avatar:
+   - Front (z-index 40, translateZ +38px, scale up, bright gold glow)
+   - Left side dipping behind (z-index 5, translateZ -35px, scale down, darker tone)
+   - Back (behind avatar)
+   - Bottom up looping to front right
+*/
+@keyframes dragon-3d-weave {
+  0% {
+    transform: translate3d(-48px, -24px, 38px) rotateX(12deg) rotateY(-22deg) rotateZ(-10deg) scale(1.15);
+    z-index: 40;
+    filter: drop-shadow(0 10px 18px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 25px rgba(239, 68, 68, 0.6)) brightness(1.2);
+    opacity: 0.98;
+  }
+  20% {
+    transform: translate3d(36px, -42px, 20px) rotateX(18deg) rotateY(15deg) rotateZ(18deg) scale(1.08);
+    z-index: 40;
+    filter: drop-shadow(4px 8px 16px rgba(245, 158, 11, 0.8)) brightness(1.15);
+  }
+  38% {
+    /* Diving Behind Top-Right to Back */
+    transform: translate3d(52px, 12px, -30px) rotateX(-15deg) rotateY(32deg) rotateZ(35deg) scale(0.85);
+    z-index: 5;
+    filter: drop-shadow(-4px 4px 10px rgba(0, 0, 0, 0.7)) brightness(0.85);
+    opacity: 0.88;
+  }
+  55% {
+    /* Full Back Passing Under Bottom */
+    transform: translate3d(-10px, 48px, -42px) rotateX(-22deg) rotateY(-18deg) rotateZ(-12deg) scale(0.78);
+    z-index: 5;
+    filter: drop-shadow(0 -4px 12px rgba(0, 0, 0, 0.8)) brightness(0.8);
+    opacity: 0.85;
+  }
+  75% {
+    /* Sweeping from Bottom-Left back to Front */
+    transform: translate3d(-54px, 18px, 15px) rotateX(14deg) rotateY(-28deg) rotateZ(-25deg) scale(1.02);
+    z-index: 40;
+    filter: drop-shadow(4px 6px 14px rgba(245, 158, 11, 0.75)) brightness(1.1);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate3d(-48px, -24px, 38px) rotateX(12deg) rotateY(-22deg) rotateZ(-10deg) scale(1.15);
+    z-index: 40;
+    filter: drop-shadow(0 10px 18px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 25px rgba(239, 68, 68, 0.6)) brightness(1.2);
+    opacity: 0.98;
+  }
+}
+
+.vip-3d-dragon-flyer {
+  position: absolute;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  font-size: 20px;
-  animation: dragon-flame 1.5s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px #f59e0b);
+  width: 110px;
+  height: 110px;
+  margin-top: -55px;
+  margin-left: -55px;
+  pointer-events: none;
+  animation: dragon-3d-weave 7.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  transform-origin: center center;
+  will-change: transform, filter;
 }
 
-/* 🔥 Fire breath trail behind dragon */
-.vip-dragon-flame {
-  position: absolute;
-  top: 8px;
-  left: calc(50% - 14px);
-  font-size: 13px;
-  animation: dragon-flame 0.8s ease-in-out infinite alternate;
+.vip-3d-dragon-flyer img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* Animations */
