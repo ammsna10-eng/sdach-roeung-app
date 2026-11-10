@@ -22,7 +22,7 @@
       "first_name": "SnA",
       "last_name": "",
       "username": "AmmSnA",
-      "photo_url": "https://t.me/i/userpic/320/ZiInAJ1FT1Aktaqch_ki8E7ThRrX6-UVUVjDo1Pf2kc.svg",
+      "photo_url": null,
       "wallet_balance": 4,
       "is_vip": true,
       "vip_expires_at": "2027-11-10T12:59:56.921Z",
@@ -159,41 +159,6 @@
     }
   ],
   "movies": [
-    {
-      "id": 1794336890302,
-      "title_kh": "ក្បែរថ្ងៃស្លាប់",
-      "title_en": "Menjelang ajal",
-      "slug": "menjelang-ajal",
-      "type": "movie",
-      "access_type": "paid",
-      "price": 0.5,
-      "rating": 9.2,
-      "poster_path": "https://i.ibb.co/qLW9QFsJ/IMG-20261101-124214-728.jpg",
-      "backdrop_path": "https://i.ibb.co/qLW9QFsJ/IMG-20261101-124214-728.jpg",
-      "trailer_url": "",
-      "video_url": "https://hugh.cdn.rumble.cloud/video/fwe2/ed/s8/2/I/V/1/6/IV16A.aaa.mp4",
-      "overview": "",
-      "language_type": "dub",
-      "release_year": 2026,
-      "runtime_minutes": "",
-      "status": "published",
-      "is_slider": true,
-      "is_popular": true,
-      "is_latest": true,
-      "is_dubbed": true,
-      "country_id": 1794333814374,
-      "genres": [
-        {
-          "id": 1794333871507,
-          "name": "Horror story / រឿងភ័យរន្ធក់"
-        },
-        {
-          "id": 4,
-          "name": "Mystery / អាថ៌កំបាំង"
-        }
-      ],
-      "comments": []
-    },
     {
       "id": 1794336244940,
       "title_kh": "មន្តអាគមគ្រូស្នេហ៍",
