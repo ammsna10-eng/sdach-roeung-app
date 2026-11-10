@@ -39,7 +39,7 @@ router.post('/telegram-login', (req, res) => {
       last_name: telegramUser.last_name || '',
       username: telegramUser.username || '',
       photo_url: telegramUser.photo_url || '/storage/logo/logo.png',
-      wallet_balance: 5.0,
+      wallet_balance: 0.0,
       is_vip: false,
       vip_expires_at: null,
       role: 'user',
