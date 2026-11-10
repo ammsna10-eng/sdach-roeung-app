@@ -89,7 +89,7 @@
       <section v-if="activeTab === 'home'" class="space-y-6">
         
         <!-- 🔥 1. Hero Spotlight Carousel (Vertical 9:16 Poster Style) -->
-        <div v-if="sliderMovies.length > 0" class="relative mx-auto max-w-md sm:max-w-lg rounded-3xl overflow-hidden aspect-[9/14] bg-[#0c0817] border border-amber-500/25 shadow-2xl shadow-amber-500/10">
+        <div v-if="sliderMovies.length > 0" @touchstart="onTouchStart" @touchend="onTouchEnd" class="group relative mx-auto max-w-md sm:max-w-lg rounded-3xl overflow-hidden aspect-[9/14] bg-[#0c0817] border border-amber-500/25 shadow-2xl shadow-amber-500/10 select-none">
           <img :src="sliderMovies[currentSlide]?.poster_path || sliderMovies[currentSlide]?.backdrop_path" class="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-110 pointer-events-none">
           <img :src="sliderMovies[currentSlide]?.poster_path || sliderMovies[currentSlide]?.backdrop_path" :alt="sliderMovies[currentSlide]?.title_kh" class="relative z-10 w-full h-full object-cover object-top transition-all duration-700">
           <div class="absolute inset-0 z-20 bg-gradient-to-t from-[#08060e] via-[#08060e]/55 to-transparent"></div>
@@ -111,6 +111,14 @@
               </button>
             </div>
           </div>
+
+          <!-- 🖥️ PC & Tablet Desktop Navigation Arrows (Left & Right) -->
+          <button @click.stop="prevSlide" aria-label="Previous Slide" class="absolute left-3 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/60 hover:bg-amber-500 text-white hover:text-black border border-white/20 hover:border-amber-400 backdrop-blur-md flex items-center justify-center transition-all duration-300 shadow-xl opacity-80 sm:opacity-0 sm:group-hover:opacity-100 active:scale-90">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button @click.stop="nextSlide" aria-label="Next Slide" class="absolute right-3 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/60 hover:bg-amber-500 text-white hover:text-black border border-white/20 hover:border-amber-400 backdrop-blur-md flex items-center justify-center transition-all duration-300 shadow-xl opacity-80 sm:opacity-0 sm:group-hover:opacity-100 active:scale-90">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+          </button>
 
           <!-- Carousel Dots -->
           <div class="absolute top-4 right-4 z-30 flex gap-1.5 bg-black/50 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10">

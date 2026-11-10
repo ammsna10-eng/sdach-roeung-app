@@ -313,7 +313,7 @@ const app = createApp({
       currentSlide, searchQuery, selectedGenre, selectedLanguage, genres, filteredMovies,
       selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, currentEpisode, movieSeasons,
       isPurchased, isBuying, purchasedMovies, continueWatching, formatDuration, purchasedMovies, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
-      adminTelegramLink, showNotify, openMovie, playMovie, buyMovie, openTopup, openVip, downloadQR
+      adminTelegramLink, showNotify, openMovie, playMovie, buyMovie, openTopup, openVip, downloadQR, nextSlide, prevSlide, onTouchStart, onTouchEnd
     };
   }
 });
