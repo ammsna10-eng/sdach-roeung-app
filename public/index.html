@@ -310,8 +310,8 @@
       <!-- TAB 4: PROFILE -->
       <section v-if="activeTab === 'profile'" class="space-y-6 max-w-xl mx-auto">
         <div class="p-6 rounded-3xl glass-card text-center space-y-4">
-          <!-- Avatar with 👑 VIP Luxury Gold Frame & 3D Weaving Dragon -->
-          <div class="relative mx-auto w-24 h-24 flex items-center justify-center vip-3d-stage">
+          <!-- Avatar with 👑 VIP Luxury Gold Frame & Crown -->
+          <div class="relative mx-auto w-24 h-24 flex items-center justify-center">
 
             <!-- VIP Magic Golden Orbit Ring (Active for VIP) -->
             <div v-if="user.is_vip" class="vip-magic-ring"></div>
@@ -326,11 +326,6 @@
 
             <!-- 👑 3D VIP Floating Royal Crown on Top-Right -->
             <span v-if="user.is_vip" class="vip-royal-crown">👑</span>
-
-            <!-- 🐉 Golden Eastern Dragon 3D Flying 360° Weaving (Front & Behind Avatar) -->
-            <div v-if="user.is_vip" class="vip-3d-dragon-flyer">
-              <img src="/storage/logo/dragon_3d.png" alt="3D Dragon">
-            </div>
           </div>
 
           <div>
