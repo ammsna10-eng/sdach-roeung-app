@@ -21,7 +21,15 @@
         <div class="text-sm font-mono text-amber-300 font-bold">
           ចំនួនទឹកប្រាក់៖ ${{ (qrModalData.amount || 0).toFixed(2) }}
         </div>
-        <p class="text-xs text-slate-400">សូមស្កេនទូទាត់តាម KHQR / Bakong / ABA ដើម្បីបញ្ចូលប្រាក់</p>
+
+        <!-- Action: Save QR Image Button for Mobile Users -->
+        <button @click="downloadQR(qrModalData.qr, 'KHQR_' + qrModalData.amount + 'USD.png')" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
+          <span>📥 រក្សាទុករូបភាព QR ក្នុងទូរស័ព្ទ</span>
+        </button>
+
+        <p class="text-[11px] text-slate-400 leading-relaxed">
+          💡 សម្រាប់ទូរស័ព្ទដៃ៖ ចុច «រក្សាទុក QR» រួចចូល App ABA/Bakong ចុចស្កេន ដោយជ្រើសរើសរូបភាពពី Gallery ជាការស្រេច!
+        </p>
 
         <!-- Send slip to Admin direct button in QR modal -->
         <a :href="adminTelegramLink" target="_blank" class="block w-full py-2 px-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-blue-300 font-bold text-xs transition-all">

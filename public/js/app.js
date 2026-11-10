@@ -172,6 +172,25 @@ const app = createApp({
       isQrModalOpen.value = true;
     };
 
+        const downloadQR = (url, filename) => {
+      let tg = window.Telegram?.WebApp;
+      let fullUrl = url.startsWith("http") ? url : window.location.origin + url;
+      if (tg && typeof tg.downloadFile === "function") {
+        tg.downloadFile({ url: fullUrl, file_name: filename }, (ok) => {
+          if (!ok && tg.openLink) tg.openLink(fullUrl);
+        });
+        showNotify("បានទាញយករូបភាព QR រួចរាល់! 📥", "success");
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = fullUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showNotify("បានទាញយករូបភាព QR រួចរាល់! 📥", "success");
+    };
+
     const openVip = (plan) => {
       qrModalData.value = {
         title: plan.title,
@@ -200,7 +219,7 @@ const app = createApp({
       currentSlide, searchQuery, selectedGenre, selectedLanguage, genres, filteredMovies,
       selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, currentEpisode, movieSeasons,
       isPurchased, isBuying, purchasedMovies, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
-      adminTelegramLink, showNotify, openMovie, playMovie, buyMovie, openTopup, openVip
+      adminTelegramLink, showNotify, openMovie, playMovie, buyMovie, openTopup, openVip, downloadQR
     };
   }
 });

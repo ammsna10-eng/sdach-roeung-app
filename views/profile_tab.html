@@ -1,16 +1,21 @@
       <!-- TAB 4: PROFILE -->
       <section v-if="activeTab === 'profile'" class="space-y-6 max-w-xl mx-auto">
         <div class="p-6 rounded-3xl glass-card text-center space-y-4">
-          <div class="relative w-20 h-20 mx-auto rounded-full p-1 bg-gradient-to-tr from-amber-500 to-purple-600 shadow-xl flex items-center justify-center">
-            <img v-if="user.photo_url" :src="user.photo_url" :alt="user.first_name" class="w-full h-full object-cover rounded-full">
-            <div v-else class="w-full h-full rounded-full bg-[#1e1736] flex items-center justify-center text-2xl font-black text-amber-400 font-mono shadow-inner">
+          <!-- Avatar with Dynamic VIP Hologram/Rainbow Glow Frame -->
+          <div :class="user.is_vip ? 'vip-frame w-24 h-24' : 'w-20 h-20 p-1 bg-gradient-to-tr from-amber-500 to-purple-600'" class="relative mx-auto rounded-full shadow-xl flex items-center justify-center transition-all duration-500">
+            <img v-if="user.photo_url" :src="user.photo_url" :alt="user.first_name" class="w-full h-full object-cover rounded-full ring-2 ring-black">
+            <div v-else class="w-full h-full rounded-full bg-[#1e1736] flex items-center justify-center text-2xl font-black text-amber-400 font-mono shadow-inner ring-2 ring-black">
               {{ (user.first_name || 'U').charAt(0).toUpperCase() }}
             </div>
-            <span v-if="user.is_vip" class="absolute bottom-0 right-0 text-xl">👑</span>
+            <!-- VIP Glowing Floating Crown -->
+            <span v-if="user.is_vip" class="absolute -top-3 -right-2 text-2xl filter drop-shadow animate-bounce">👑</span>
           </div>
           <div>
-            <h3 class="text-lg font-bold text-white">{{ user.first_name }} {{ user.last_name || '' }}</h3>
-            <p class="text-xs text-amber-400 font-mono"><span v-if="user.username">@{{ user.username }} • </span>ID: {{ user.id }}</p>
+            <div class="flex items-center justify-center gap-1.5">
+              <h3 class="text-lg font-bold text-white">{{ user.first_name }} {{ user.last_name || '' }}</h3>
+              <span v-if="user.is_vip" class="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[10px] font-black tracking-wider uppercase shadow">VIP PASS</span>
+            </div>
+            <p class="text-xs text-amber-400 font-mono mt-0.5"><span v-if="user.username">@{{ user.username }} • </span>ID: {{ user.id }}</p>
           </div>
 
           <div class="grid grid-cols-2 gap-3 pt-2">
