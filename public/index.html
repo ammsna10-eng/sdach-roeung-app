@@ -609,8 +609,9 @@
     </div>
 
     <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
+    <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
     <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex flex-col justify-center items-center">
-      <!-- Normal portrait player wrapper -->
+      <!-- Normal portrait & landscape player wrapper -->
       <div id="sdach-player-wrapper" class="relative w-full max-w-4xl aspect-video bg-black flex items-center justify-center overflow-hidden">
         <!-- Video element configured for iOS Safari & WebKit inline playback -->
         <video 
@@ -625,50 +626,56 @@
           @error="onVideoError"
         ></video>
 
-        <!-- Tap to play overlay when iOS Safari blocks unmuted programmatic autoplay -->
-        <div v-if="isVideoBlocked" @click="resumePlayback" class="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center cursor-pointer z-10 space-y-3">
-          <div class="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center text-white text-2xl shadow-2xl shadow-red-500/50 transform hover:scale-110 active:scale-95 transition-all">
-            ▶
-          </div>
-          <span class="text-white text-xs font-bold bg-black/80 px-4 py-2 rounded-full border border-white/20">ចុចទីនេះដើម្បីទស្សនា (Tap to Play)</span>
+        <!-- FLOATING CONTROL BUTTONS (INSIDE WRAPPER SO THEY ROTATE & STAY IN FULLSCREEN) -->
+        <div class="absolute top-3 right-3 z-30 flex items-center gap-2 pointer-events-auto">
+          <!-- Fullscreen / Landscape Toggle Button -->
+          <button 
+            @click="toggleFullscreen" 
+            id="custom-fullscreen-btn"
+            type="button"
+            class="px-3.5 py-2 rounded-xl bg-amber-500/90 text-black text-xs font-black border border-amber-300 backdrop-blur-md active:scale-95 flex items-center gap-1.5 shadow-xl transition-transform"
+            style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
+            <span class="text-base">{{ isFullscreenLandscape ? '✕' : '⛶' }}</span>
+            <span>{{ isFullscreenLandscape ? 'ធម្មតា' : 'ពេញអេក្រង់' }}</span>
+          </button>
+          
+          <!-- Close Button -->
+          <button 
+            @click="closePlayer" 
+            type="button"
+            class="px-3 py-2 rounded-xl bg-red-600/90 text-white text-xs font-black border border-red-400 backdrop-blur-md active:scale-95 flex items-center gap-1 shadow-xl transition-transform"
+            style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
+            <span class="text-base">✕</span>
+            <span>បិទ</span>
+          </button>
         </div>
 
-        <!-- Video playback error overlay with retry option -->
-        <div v-if="videoErrorMessage" class="absolute inset-0 bg-black/90 p-6 flex flex-col items-center justify-center text-center z-20 space-y-3">
-          <span class="text-4xl">⚠️</span>
-          <p class="text-white text-sm font-bold max-w-sm">{{ videoErrorMessage }}</p>
-          <div class="flex gap-2 pt-2">
-            <button @click="retryPlay" class="px-4 py-2 rounded-xl bg-amber-500 text-black text-xs font-bold active:scale-95">ព្យាយាមម្ដងទៀត (Retry)</button>
-            <button @click="closePlayer" class="px-4 py-2 rounded-xl bg-white/20 text-white text-xs font-bold active:scale-95">បិទ</button>
+        <!-- Tap to play overlay (iOS fallback) -->
+        <div v-if="isVideoBlocked" @click="resumePlayback" 
+             class="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center cursor-pointer">
+          <div class="text-white text-center p-6">
+            <div class="text-6xl mb-4">▶️</div>
+            <div class="text-xl font-bold">ចុចទីនេះដើម្បីទស្សនា</div>
+            <div class="text-sm text-gray-300 mt-2">Tap to Play</div>
           </div>
+        </div>
+
+        <!-- Error message overlay -->
+        <div v-if="videoErrorMessage" class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center p-6">
+          <div class="text-red-500 text-6xl mb-4">⚠️</div>
+          <div class="text-white text-center">
+            <div class="text-xl font-bold mb-2">មានបញ្ហាក្នុងការចាក់វីដេអូ</div>
+            <div class="text-sm text-gray-300">{{ videoErrorMessage }}</div>
+          </div>
+          <button @click="retryPlay" 
+                  class="mt-6 px-6 py-3 bg-amber-500 text-black font-bold rounded-lg hover:bg-amber-400 active:scale-95">
+            🔄 ព្យាយាមម្តងទៀត (Retry)
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- 🎯 SEPARATE FLOATING CONTROL BUTTONS OVERLAY (INDEPENDENT FROM VIDEO) -->
-    <div v-if="isPlayerOpen" class="fixed inset-0 pointer-events-none" style="z-index: 999999;">
-      <div class="absolute top-3 right-3 flex items-center gap-2 pointer-events-auto">
-        <!-- Fullscreen / Landscape Toggle Button -->
-        <button 
-          @click="toggleFullscreen"
-          @touchend.prevent="toggleFullscreen"
-          id="custom-fullscreen-btn"
-          class="px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-extrabold border-2 border-amber-300 active:scale-95 flex items-center gap-2 shadow-2xl"
-          style="touch-action: manipulation; min-width: 50px; min-height: 50px; -webkit-user-select: none; user-select: none;">
-          <span v-if="!isFullscreenLandscape">⛶ ពេញអេក្រង់</span>
-          <span v-else>⤡ បង្រួម</span>
-        </button>
-        <!-- Close Button -->
-        <button @click="closePlayer"
-          @touchend.prevent="closePlayer"
-          class="px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-extrabold border-2 border-red-400 active:scale-95 shadow-2xl"
-          style="touch-action: manipulation; min-width: 50px; min-height: 50px; -webkit-user-select: none; user-select: none;">
-          ✕ បិទ
-        </button>
-      </div>
-    </div>
-
-    <!-- 🔄 CSS Landscape Fullscreen Overlay (injected via JS toggleFullscreen) -->
+    <!-- 🔄 CSS Landscape Fullscreen Overlay target -->
     <style id="sdach-landscape-style"></style>
 
     <!-- 💳 TOPUP / VIP DYNAMIC KHQR MODAL -->

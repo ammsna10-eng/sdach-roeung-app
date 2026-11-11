@@ -236,6 +236,9 @@ const app = createApp({
     };
 
     const closePlayer = () => {
+      if (isFullscreenLandscape.value) {
+        exitFullscreenMode();
+      }
       isPlayerOpen.value = false;
       activeStreamUrl.value = '';
       isVideoBlocked.value = false;
@@ -275,65 +278,126 @@ const app = createApp({
       }
     };
 
+    // ==========================================
+    // Fullscreen Cross-Platform Logic (PC, Android, iOS)
+    // ==========================================
     const isFullscreenLandscape = ref(false);
+    let lastFullscreenToggle = 0;
 
-    const toggleFullscreen = () => {
-      console.log('[Fullscreen] Button clicked, current state:', isFullscreenLandscape.value);
-      
-      const wrapper = document.getElementById('sdach-player-wrapper');
+    const getOrCreateLandscapeStyle = () => {
+      let styleEl = document.getElementById('sdach-landscape-style');
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'sdach-landscape-style';
+        document.head.appendChild(styleEl);
+      }
+      return styleEl;
+    };
+
+    const exitFullscreenMode = () => {
+      console.log('[Fullscreen] Exiting fullscreen mode...');
+      isFullscreenLandscape.value = false;
+
       const styleEl = document.getElementById('sdach-landscape-style');
-      const video = document.getElementById('sdach-video-player');
-      
-      console.log('[Fullscreen] Elements found:', { wrapper: !!wrapper, styleEl: !!styleEl, video: !!video });
-      
-      if (!wrapper || !styleEl) {
-        console.warn('[Fullscreen] Missing required elements!');
-        return;
+      if (styleEl) styleEl.textContent = '';
+
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
       }
 
-      if (!isFullscreenLandscape.value) {
-        // === Enter Landscape Fullscreen ===
-        console.log('[Fullscreen] Entering fullscreen mode...');
-        isFullscreenLandscape.value = true;
-        
-        // Try native fullscreen + orientation lock first (Android Chrome)
-        if (video && video.requestFullscreen) {
-          console.log('[Fullscreen] Attempting native fullscreen...');
-          video.requestFullscreen().then(() => {
-            console.log('[Fullscreen] Native fullscreen success');
-            if (screen.orientation && screen.orientation.lock) {
-              screen.orientation.lock('landscape').catch((e) => {
-                console.log('[Fullscreen] Orientation lock failed:', e);
-              });
-            }
-          }).catch((e) => {
-            console.log('[Fullscreen] Native fullscreen failed:', e);
-          });
-        } else if (video && video.webkitEnterFullscreen) {
-          // iOS Safari native fullscreen
-          console.log('[Fullscreen] Attempting iOS fullscreen...');
-          try {
-            video.webkitEnterFullscreen();
-          } catch(e) {
-            console.log('[Fullscreen] iOS fullscreen failed:', e);
-          }
+      if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
+      }
+
+      const tg = window.Telegram?.WebApp;
+      if (tg?.exitFullscreen) {
+        try { tg.exitFullscreen(); } catch (e) {}
+      }
+    };
+
+    const enterFullscreenMode = () => {
+      console.log('[Fullscreen] Entering fullscreen mode...');
+      isFullscreenLandscape.value = true;
+
+      const wrapper = document.getElementById('sdach-player-wrapper');
+      const video = document.getElementById('sdach-video-player');
+      const styleEl = getOrCreateLandscapeStyle();
+
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const isMobile = isIOS || /Android/i.test(navigator.userAgent);
+      const isPortrait = window.innerHeight > window.innerWidth;
+
+      // 1. iOS Safari Native Player (Best performance for iPhone)
+      if (isIOS && video && typeof video.webkitEnterFullscreen === 'function') {
+        try {
+          video.webkitEnterFullscreen();
+          const onIOSExit = () => {
+            isFullscreenLandscape.value = false;
+            video.removeEventListener('webkitendfullscreen', onIOSExit);
+          };
+          video.addEventListener('webkitendfullscreen', onIOSExit);
+          return;
+        } catch (e) {
+          console.warn('[Fullscreen] iOS native enter failed, fallback to CSS:', e);
         }
-        
-        // CSS Force Rotate Fallback (works even if native fullscreen blocked by Telegram WebView)
-        console.log('[Fullscreen] Applying CSS rotation...');
+      }
+
+      // 2. Telegram Mini App Fullscreen API
+      const tg = window.Telegram?.WebApp;
+      if (tg?.requestFullscreen) {
+        try { tg.requestFullscreen(); } catch (e) {}
+      }
+
+      // 3. Native Fullscreen for Android & Desktop
+      let nativePromise = null;
+      if (wrapper && wrapper.requestFullscreen) {
+        nativePromise = wrapper.requestFullscreen();
+      } else if (wrapper && wrapper.webkitRequestFullscreen) {
+        nativePromise = wrapper.webkitRequestFullscreen();
+      } else if (video && video.requestFullscreen) {
+        nativePromise = video.requestFullscreen();
+      }
+
+      if (nativePromise && typeof nativePromise.then === 'function') {
+        nativePromise.then(() => {
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
+          }
+        }).catch((err) => {
+          console.log('[Fullscreen] Native blocked, using CSS fallback:', err);
+          applyCssRotation(styleEl, isMobile && isPortrait);
+        });
+      }
+
+      // 4. Fallback CSS Geometry
+      applyCssRotation(styleEl, isMobile && isPortrait);
+    };
+
+    const applyCssRotation = (styleEl, shouldRotate) => {
+      if (!styleEl) return;
+      if (shouldRotate) {
+        // Correct 90-degree mathematical rotation from top-left origin
         styleEl.textContent = `
           #sdach-player-wrapper {
             position: fixed !important;
-            top: 0 !important; left: 0 !important;
+            top: 0 !important;
+            left: 100vw !important;
             width: 100vh !important;
             height: 100vw !important;
             max-width: none !important;
+            max-height: none !important;
             transform: rotate(90deg) !important;
             transform-origin: top left !important;
-            margin-top: 100vw !important;
-            z-index: 9999 !important;
+            z-index: 999999 !important;
             background: #000 !important;
             aspect-ratio: unset !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           #sdach-player-wrapper video {
             width: 100% !important;
@@ -341,19 +405,45 @@ const app = createApp({
             object-fit: contain !important;
           }
         `;
-        console.log('[Fullscreen] CSS applied successfully');
       } else {
-        // === Exit Landscape Fullscreen ===
-        console.log('[Fullscreen] Exiting fullscreen mode...');
-        isFullscreenLandscape.value = false;
-        styleEl.textContent = '';
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
-        }
-        if (screen.orientation && screen.orientation.unlock) {
-          screen.orientation.unlock();
-        }
-        console.log('[Fullscreen] Exit complete');
+        styleEl.textContent = `
+          #sdach-player-wrapper {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
+            transform: none !important;
+            z-index: 999999 !important;
+            background: #000 !important;
+            aspect-ratio: unset !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          #sdach-player-wrapper video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+          }
+        `;
+      }
+    };
+
+    const toggleFullscreen = () => {
+      const now = Date.now();
+      // Debounce: block repeated calls within 400ms to eliminate touch/click double-triggers
+      if (now - lastFullscreenToggle < 400) {
+        console.log('[Fullscreen] Toggle throttled to prevent double trigger');
+        return;
+      }
+      lastFullscreenToggle = now;
+
+      if (isFullscreenLandscape.value) {
+        exitFullscreenMode();
+      } else {
+        enterFullscreenMode();
       }
     };
 
@@ -459,13 +549,11 @@ const app = createApp({
           unlockedMovie.video_url = res.data.video_url;
         }
 
-        // Update selectedMovie immediately with the unlocked movie object & video_url
         selectedMovie.value = { ...selectedMovie.value, ...unlockedMovie };
         if (unlockedMovie.seasons) {
           movieSeasons.value = unlockedMovie.seasons;
         }
 
-        // Synchronize in-memory movies lists so any subsequent clicks don't miss video_url
         const syncList = (list) => {
           if (!Array.isArray(list)) return;
           const idx = list.findIndex(m => m && String(m.id) === String(movie.id));
@@ -484,8 +572,6 @@ const app = createApp({
         }
 
         showNotify(res.data.message || 'បានទិញជោគជ័យ! សូមរីករាយទស្សនា', 'success');
-
-        // Immediately start playback without needing to clear app or reload
         playMovie(selectedMovie.value);
       } catch (e) {
         showNotify(e.response?.data?.message || 'មានបញ្ហាក្នុងការទិញ', 'error');
@@ -504,7 +590,6 @@ const app = createApp({
     };
 
     const generateBakongQR = async (amount, type, targetId = null) => {
-      // Show loading state
       qrModalData.value = { ...qrModalData.value, loading: true, qr_image: null, paymentStatus: null };
       isQrModalOpen.value = true;
       try {
@@ -522,7 +607,6 @@ const app = createApp({
             amount: amount,
             paymentStatus: 'checking'
           };
-          // Start polling for payment confirmation every 4 seconds
           clearPaymentPolling();
           paymentPollingInterval = setInterval(async () => {
             try {
@@ -530,7 +614,6 @@ const app = createApp({
               if (checkRes.data.status === 'completed') {
                 clearPaymentPolling();
                 qrModalData.value.paymentStatus = 'success';
-                // Refresh user data (wallet/VIP)
                 try {
                   const meRes = await axios.get('/api/me');
                   if (meRes.data && meRes.data.user) {
@@ -603,7 +686,6 @@ const app = createApp({
       generateBakongQR(plan.price, 'vip');
     };
 
-
     const nextSlide = () => {
       if (sliderMovies.value.length > 0) {
         currentSlide.value = (currentSlide.value + 1) % sliderMovies.value.length;
@@ -644,6 +726,18 @@ const app = createApp({
       await initTelegram();
       await loadData();
       loadWatchHistory();
+
+      // Listener សម្រាប់ auto-exit ពេល user ចុច Back Button លើ Mobile ឬចុច ESC លើ PC
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement && isFullscreenLandscape.value) {
+          exitFullscreenMode();
+        }
+      });
+      document.addEventListener('webkitfullscreenchange', () => {
+        if (!document.webkitFullscreenElement && isFullscreenLandscape.value) {
+          exitFullscreenMode();
+        }
+      });
 
       // Deep link support from Telegram broadcast notifications
       try {
