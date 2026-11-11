@@ -239,6 +239,13 @@ const app = createApp({
       if (isFullscreenLandscape.value) {
         exitFullscreenMode();
       }
+      
+      // Exit Telegram fullscreen if active
+      const tg = window.Telegram?.WebApp;
+      if (tg?.exitFullscreen) {
+        try { tg.exitFullscreen(); } catch (e) {}
+      }
+      
       isPlayerOpen.value = false;
       activeStreamUrl.value = '';
       isVideoBlocked.value = false;
@@ -424,6 +431,12 @@ const app = createApp({
 
       activeStreamUrl.value = url;
       isPlayerOpen.value = true;
+
+      // Request Telegram fullscreen to hide top header
+      const tg = window.Telegram?.WebApp;
+      if (tg?.requestFullscreen) {
+        try { tg.requestFullscreen(); } catch (e) {}
+      }
 
       nextTick(() => {
         const v = document.getElementById('sdach-video-player');

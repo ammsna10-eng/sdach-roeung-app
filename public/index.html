@@ -609,11 +609,20 @@
     </div>
 
     <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
-    <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
-    <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex flex-col justify-center items-center">
-      <!-- Normal portrait & landscape player wrapper -->
-      <div id="sdach-player-wrapper" class="relative w-full max-w-4xl aspect-video bg-black flex items-center justify-center overflow-hidden">
-        <!-- Video element configured for iOS Safari & WebKit inline playback -->
+    <!-- 📺 CLEAN CINEMATIC VIDEO PLAYER MODAL -->
+    <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden">
+      
+      <!-- Minimalist Professional Back/Close Button (Top-Left) -->
+      <button 
+        @click="closePlayer" 
+        type="button"
+        class="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white/90 hover:text-white border border-white/20 flex items-center justify-center text-lg active:scale-95 transition-all shadow-lg"
+        title="ត្រឡប់ក្រោយ (Back)">
+        ←
+      </button>
+
+      <!-- Video Player Wrapper (Responsive: fills screen in landscape) -->
+      <div id="sdach-player-wrapper" class="relative w-full h-full max-w-5xl flex items-center justify-center">
         <video 
           id="sdach-video-player" 
           :src="activeStreamUrl" 
@@ -622,33 +631,9 @@
           webkit-playsinline 
           x5-playsinline
           preload="auto" 
-          class="w-full h-full object-contain"
+          class="w-full h-full max-h-screen object-contain"
           @error="onVideoError"
         ></video>
-
-        <!-- FLOATING CONTROL BUTTONS (INSIDE WRAPPER SO THEY ROTATE & STAY IN FULLSCREEN) -->
-        <div class="absolute top-3 right-3 z-30 flex items-center gap-2 pointer-events-auto">
-          <!-- Fullscreen / Landscape Toggle Button -->
-          <button 
-            @click="toggleFullscreen" 
-            id="custom-fullscreen-btn"
-            type="button"
-            class="px-3.5 py-2 rounded-xl bg-amber-500/90 text-black text-xs font-black border border-amber-300 backdrop-blur-md active:scale-95 flex items-center gap-1.5 shadow-xl transition-transform"
-            style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
-            <span class="text-base">{{ isFullscreenLandscape ? '✕' : '⛶' }}</span>
-            <span>{{ isFullscreenLandscape ? 'ធម្មតា' : 'ពេញអេក្រង់' }}</span>
-          </button>
-          
-          <!-- Close Button -->
-          <button 
-            @click="closePlayer" 
-            type="button"
-            class="px-3 py-2 rounded-xl bg-red-600/90 text-white text-xs font-black border border-red-400 backdrop-blur-md active:scale-95 flex items-center gap-1 shadow-xl transition-transform"
-            style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
-            <span class="text-base">✕</span>
-            <span>បិទ</span>
-          </button>
-        </div>
 
         <!-- Tap to play overlay (iOS fallback) -->
         <div v-if="isVideoBlocked" @click="resumePlayback" 
@@ -742,7 +727,7 @@
   </div> <!-- End #app -->
 
   <!-- App Script -->
-  <script src="/js/app.js?v=native_fullscreen_v1"></script>
+  <script src="/js/app.js?v=clean_cinema_v2"></script>
 </body>
 </html>
 
