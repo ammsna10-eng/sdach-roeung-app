@@ -160,6 +160,41 @@
   ],
   "movies": [
     {
+      "id": 1794336890302,
+      "title_kh": "ក្បែរថ្ងៃស្លាប់",
+      "title_en": "Menjelang ajal",
+      "slug": "menjelang-ajal",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9.2,
+      "poster_path": "https://i.ibb.co/qLW9QFsJ/IMG-20261101-124214-728.jpg",
+      "backdrop_path": "https://i.ibb.co/qLW9QFsJ/IMG-20261101-124214-728.jpg",
+      "trailer_url": "",
+      "video_url": "https://hugh.cdn.rumble.cloud/video/fwe2/ed/s8/2/I/V/1/6/IV16A.aaa.mp4",
+      "overview": "",
+      "language_type": "dub",
+      "release_year": 2026,
+      "runtime_minutes": "",
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": true,
+      "country_id": 1794333814374,
+      "genres": [
+        {
+          "id": 1794333871507,
+          "name": "Horror story / រឿងភ័យរន្ធក់"
+        },
+        {
+          "id": 4,
+          "name": "Mystery / អាថ៌កំបាំង"
+        }
+      ],
+      "comments": []
+    },
+    {
       "id": 1794382902356,
       "title_kh": "អាថ៌កំបាំងផ្នូរបុរាណ នៃមេទ័ពខ្មោចឆៅ",
       "title_en": "Zombie general 1",
