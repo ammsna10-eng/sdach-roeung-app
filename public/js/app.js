@@ -278,26 +278,49 @@ const app = createApp({
     const isFullscreenLandscape = ref(false);
 
     const toggleFullscreen = () => {
+      console.log('[Fullscreen] Button clicked, current state:', isFullscreenLandscape.value);
+      
       const wrapper = document.getElementById('sdach-player-wrapper');
       const styleEl = document.getElementById('sdach-landscape-style');
       const video = document.getElementById('sdach-video-player');
-      if (!wrapper || !styleEl) return;
+      
+      console.log('[Fullscreen] Elements found:', { wrapper: !!wrapper, styleEl: !!styleEl, video: !!video });
+      
+      if (!wrapper || !styleEl) {
+        console.warn('[Fullscreen] Missing required elements!');
+        return;
+      }
 
       if (!isFullscreenLandscape.value) {
         // === Enter Landscape Fullscreen ===
+        console.log('[Fullscreen] Entering fullscreen mode...');
         isFullscreenLandscape.value = true;
+        
         // Try native fullscreen + orientation lock first (Android Chrome)
         if (video && video.requestFullscreen) {
+          console.log('[Fullscreen] Attempting native fullscreen...');
           video.requestFullscreen().then(() => {
+            console.log('[Fullscreen] Native fullscreen success');
             if (screen.orientation && screen.orientation.lock) {
-              screen.orientation.lock('landscape').catch(() => {});
+              screen.orientation.lock('landscape').catch((e) => {
+                console.log('[Fullscreen] Orientation lock failed:', e);
+              });
             }
-          }).catch(() => {});
+          }).catch((e) => {
+            console.log('[Fullscreen] Native fullscreen failed:', e);
+          });
         } else if (video && video.webkitEnterFullscreen) {
           // iOS Safari native fullscreen
-          video.webkitEnterFullscreen();
+          console.log('[Fullscreen] Attempting iOS fullscreen...');
+          try {
+            video.webkitEnterFullscreen();
+          } catch(e) {
+            console.log('[Fullscreen] iOS fullscreen failed:', e);
+          }
         }
+        
         // CSS Force Rotate Fallback (works even if native fullscreen blocked by Telegram WebView)
+        console.log('[Fullscreen] Applying CSS rotation...');
         styleEl.textContent = `
           #sdach-player-wrapper {
             position: fixed !important;
@@ -318,8 +341,10 @@ const app = createApp({
             object-fit: contain !important;
           }
         `;
+        console.log('[Fullscreen] CSS applied successfully');
       } else {
         // === Exit Landscape Fullscreen ===
+        console.log('[Fullscreen] Exiting fullscreen mode...');
         isFullscreenLandscape.value = false;
         styleEl.textContent = '';
         if (document.fullscreenElement) {
@@ -328,6 +353,7 @@ const app = createApp({
         if (screen.orientation && screen.orientation.unlock) {
           screen.orientation.unlock();
         }
+        console.log('[Fullscreen] Exit complete');
       }
     };
 
