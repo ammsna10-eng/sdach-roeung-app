@@ -697,6 +697,12 @@
           <span class="text-slate-400 text-[10px]">សូមទាក់ទង Admin ប្រសិនបើលុយបានដកចេញ</span>
         </div>
 
+        <!-- Download QR Button (for users with single phone) -->
+        <button v-if="qrModalData.qr_image && !qrModalData.loading" @click="downloadQR" 
+          class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
+          <span>📥 រក្សាទុករូបភាព QR</span>
+        </button>
+
         <!-- Instructions -->
         <p class="text-[11px] text-slate-400 leading-relaxed">
           💡 ស្កេន QR ដោយប្រើ App <strong class="text-amber-300">ABA / Bakong / Wing</strong> ឬ App ធនាគារណាមួយ។ ប្រព័ន្ធនឹង Auto-Activate ភ្លាមៗ!

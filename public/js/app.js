@@ -538,6 +538,24 @@ const app = createApp({
       }
     };
 
+    const downloadQR = () => {
+      if (!qrModalData.value.qr_image) {
+        showNotify('មិនមាន QR Code ដើម្បីរក្សាទុក!', 'error');
+        return;
+      }
+      try {
+        const link = document.createElement('a');
+        link.href = qrModalData.value.qr_image;
+        link.download = `KHQR_${qrModalData.value.amount || 0}USD_${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showNotify('រក្សាទុករូបភាព QR ជោគជ័យ!', 'success');
+      } catch(err) {
+        showNotify('មានបញ្ហាក្នុងការរក្សាទុករូបភាព!', 'error');
+      }
+    };
+
     const openTopup = (pkg) => {
       qrModalData.value = {
         title: pkg.title || 'បញ្ចូលប្រាក់',
@@ -628,7 +646,7 @@ const app = createApp({
       adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
       openTopup, openVip, nextSlide, prevSlide, onTouchStart, onTouchEnd,
       formatVipExpire, getVipRemainingDays,
-      isFullscreenLandscape, toggleFullscreen, clearPaymentPolling
+      isFullscreenLandscape, toggleFullscreen, clearPaymentPolling, downloadQR
     };
   }
 });
