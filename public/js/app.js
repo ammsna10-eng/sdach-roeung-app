@@ -792,7 +792,7 @@ const app = createApp({
         if (!document.webkitFullscreenElement && screen.orientation && screen.orientation.unlock) {
           try { screen.orientation.unlock(); } catch (e) {}
         }
-      });\
+      });
 
       // Orientation change handler: Remove forced landscape if user rotates phone to landscape
       window.addEventListener('resize', () => {
