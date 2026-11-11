@@ -643,24 +643,26 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Top Controls: Close + Fullscreen buttons (MOVED OUTSIDE VIDEO WRAPPER) -->
-      <div class="fixed top-3 right-3 z-[9999] flex items-center gap-2">
+    <!-- 🎯 SEPARATE FLOATING CONTROL BUTTONS OVERLAY (INDEPENDENT FROM VIDEO) -->
+    <div v-if="isPlayerOpen" class="fixed inset-0 pointer-events-none" style="z-index: 999999;">
+      <div class="absolute top-3 right-3 flex items-center gap-2 pointer-events-auto">
         <!-- Fullscreen / Landscape Toggle Button -->
         <button 
           @click="toggleFullscreen"
-          @click.native="toggleFullscreen"
-          @touchstart.prevent="toggleFullscreen"
-          onclick="console.log('Native click triggered'); if(window.vueApp && window.vueApp.toggleFullscreen) { window.vueApp.toggleFullscreen(); }"
-          class="px-3 py-1.5 rounded-xl bg-black/90 backdrop-blur-md text-white text-xs font-bold border-2 border-amber-500/50 hover:border-amber-500 active:scale-95 flex items-center gap-1.5 shadow-2xl shadow-amber-500/20"
-          style="touch-action: manipulation; min-width: 44px; min-height: 44px;">
+          @touchend.prevent="toggleFullscreen"
+          id="custom-fullscreen-btn"
+          class="px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-extrabold border-2 border-amber-300 active:scale-95 flex items-center gap-2 shadow-2xl"
+          style="touch-action: manipulation; min-width: 50px; min-height: 50px; -webkit-user-select: none; user-select: none;">
           <span v-if="!isFullscreenLandscape">⛶ ពេញអេក្រង់</span>
           <span v-else>⤡ បង្រួម</span>
         </button>
         <!-- Close Button -->
-        <button @click="closePlayer" 
-          class="px-3.5 py-1.5 rounded-xl bg-black/90 backdrop-blur-md text-white text-xs font-bold border-2 border-white/30 hover:border-white active:scale-95 shadow-2xl"
-          style="touch-action: manipulation; min-width: 44px; min-height: 44px;">
+        <button @click="closePlayer"
+          @touchend.prevent="closePlayer"
+          class="px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-extrabold border-2 border-red-400 active:scale-95 shadow-2xl"
+          style="touch-action: manipulation; min-width: 50px; min-height: 50px; -webkit-user-select: none; user-select: none;">
           ✕ បិទ
         </button>
       </div>
