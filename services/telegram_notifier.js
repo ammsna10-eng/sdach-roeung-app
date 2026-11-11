@@ -163,7 +163,38 @@ async function broadcastNewMovie(movie) {
   };
 }
 
+/**
+ * Send a direct message to a single user by their Telegram chat ID
+ * @param {string|number} telegramId - The Telegram chat ID of the user
+ * @param {string} message - The message text to send
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+async function broadcastToUser(telegramId, message) {
+  const botToken = process.env.BOT_TOKEN;
+  if (!botToken) {
+    console.warn('⚠️ BOT_TOKEN is not set. Cannot send message to user.');
+    return { ok: false, error: 'BOT_TOKEN missing' };
+  }
+
+  const telegramApi = `https://api.telegram.org/bot${botToken}`;
+  
+  try {
+    await axios.post(`${telegramApi}/sendMessage`, {
+      chat_id: String(telegramId),
+      text: message,
+      parse_mode: 'HTML'
+    }, { timeout: 10000 });
+    
+    console.log(`✅ Message sent to Telegram user ${telegramId}`);
+    return { ok: true };
+  } catch (err) {
+    console.error(`❌ Failed to send message to ${telegramId}:`, err.response?.data?.description || err.message);
+    return { ok: false, error: err.response?.data?.description || err.message };
+  }
+}
+
 module.exports = {
   broadcastNewMovie,
-  buildMovieCaption
+  buildMovieCaption,
+  broadcastToUser
 };
