@@ -102,7 +102,7 @@ router.post('/data/movies', (req, res) => {
   const cleanGenres = normalizeGenres(req.body.genres, dbGenres);
 
   const langType = req.body.language_type || 'dub';
-  const isDub = langType === 'dub' || langType === 'khmer_dubbed' || req.body.is_dubbed === true;
+  const isDub = langType === 'dub' || langType === 'khmer_dubbed' || langType === 'human' || req.body.is_dubbed === true;
 
   const movie = {
     id: Date.now(),
@@ -145,7 +145,7 @@ router.put('/data/movies/:id', (req, res) => {
 
   const cleanGenres = req.body.genres ? normalizeGenres(req.body.genres, dbGenres) : normalizeGenres(movie.genres, dbGenres);
   const langType = req.body.language_type !== undefined ? req.body.language_type : movie.language_type;
-  const isDub = langType === 'dub' || langType === 'khmer_dubbed';
+  const isDub = langType === 'dub' || langType === 'khmer_dubbed' || langType === 'human' || req.body.is_dubbed === true;
 
   Object.assign(movie, req.body, {
     genres: cleanGenres,

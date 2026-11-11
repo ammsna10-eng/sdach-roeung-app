@@ -56,7 +56,7 @@ function downloadFile(urlPath, destPath) {
       if (cleanGenres.length === 0 && localDb.genres.length > 0) {
         cleanGenres.push(localDb.genres[0]);
       }
-      const isDub = m.language_type === 'dub' || m.language_type === 'khmer_dubbed' || m.is_dubbed === true;
+      const isDub = m.language_type === 'dub' || m.language_type === 'human' || m.language_type === 'khmer_dubbed' || m.is_dubbed === true;
       return {
         ...m,
         status: m.status === 'draft' ? 'published' : (m.status || 'published'),

@@ -80,6 +80,14 @@
     {
       "id": 1794333871507,
       "name": "Horror story / រឿងភ័យរន្ធក់"
+    },
+    {
+      "id": 1794400499829,
+      "name": "បញ្ចូលសម្លេងមនុស្ស"
+    },
+    {
+      "id": 1794400511532,
+      "name": "បញ្ចូលសម្លេង Ai"
     }
   ],
   "countries": [
@@ -98,6 +106,10 @@
     {
       "id": 1794333814374,
       "name": "ម៉ាឡេស៊ី (Malaysia)"
+    },
+    {
+      "id": 1794400441540,
+      "name": "ឥណ្ឌូនេស៊ី (Indonesia)"
     }
   ],
   "topup_packages": [
@@ -160,6 +172,45 @@
   ],
   "movies": [
     {
+      "id": 1794400322734,
+      "title_kh": "អាថ៌កំបាំងផ្នូរបុរាណ នៃមេទ័ពខ្មោចឆៅ 2",
+      "title_en": "Zombie General 2",
+      "slug": "zombie-general-2",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9.5,
+      "poster_path": "https://hugh.cdn.rumble.cloud/video/fww1/10/s8/1/U/Q/h/d/UQhdB.qR4e-small--2..jpg",
+      "backdrop_path": "https://hugh.cdn.rumble.cloud/video/fww1/10/s8/1/U/Q/h/d/UQhdB.qR4e-small--2..jpg",
+      "trailer_url": "",
+      "video_url": "https://rumble.com/hls-vod/Nvanexo_9Hs/playlist.m3u8?key=lFenqxVmMCquWwnlhp0-UZuJzBPvZjUa2k5v_yVbSuuUV_txtxB8HVIPqU3V0eyP&u=0&b=0",
+      "overview": "",
+      "language_type": "dub",
+      "release_year": 2026,
+      "runtime_minutes": "",
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": true,
+      "country_id": 1794333814374,
+      "genres": [
+        {
+          "id": 2,
+          "name": "Comedy / កំប្លែង"
+        },
+        {
+          "id": 4,
+          "name": "Mystery / អាថ៌កំបាំង"
+        },
+        {
+          "id": 1794400511532,
+          "name": "បញ្ចូលសម្លេង Ai"
+        }
+      ],
+      "comments": []
+    },
+    {
       "id": 1794336890302,
       "title_kh": "ក្បែរថ្ងៃស្លាប់",
       "title_en": "Menjelang ajal",
@@ -181,7 +232,7 @@
       "is_popular": true,
       "is_latest": true,
       "is_dubbed": true,
-      "country_id": 1794333814374,
+      "country_id": 1794400441540,
       "genres": [
         {
           "id": 1794333871507,
@@ -190,6 +241,10 @@
         {
           "id": 4,
           "name": "Mystery / អាថ៌កំបាំង"
+        },
+        {
+          "id": 1794400499829,
+          "name": "បញ្ចូលសម្លេងមនុស្ស"
         }
       ],
       "comments": []
@@ -229,6 +284,10 @@
         {
           "id": 1794333871507,
           "name": "Horror story / រឿងភ័យរន្ធក់"
+        },
+        {
+          "id": 1794400511532,
+          "name": "បញ្ចូលសម្លេង Ai"
         }
       ],
       "comments": []
@@ -255,7 +314,7 @@
       "is_popular": true,
       "is_latest": true,
       "is_dubbed": true,
-      "country_id": 1794333814374,
+      "country_id": 1794400441540,
       "genres": [
         {
           "id": 1794333871507,
@@ -264,6 +323,10 @@
         {
           "id": 4,
           "name": "Mystery / អាថ៌កំបាំង"
+        },
+        {
+          "id": 1794400499829,
+          "name": "បញ្ចូលសម្លេងមនុស្ស"
         }
       ],
       "comments": []
@@ -289,7 +352,7 @@
       "is_popular": true,
       "is_latest": true,
       "is_dubbed": true,
-      "country_id": 1794333814374,
+      "country_id": 1794400441540,
       "genres": [
         {
           "id": 2,
@@ -298,6 +361,10 @@
         {
           "id": 1794333871507,
           "name": "Horror story / រឿងភ័យរន្ធក់"
+        },
+        {
+          "id": 1794400499829,
+          "name": "បញ្ចូលសម្លេងមនុស្ស"
         }
       ],
       "comments": []

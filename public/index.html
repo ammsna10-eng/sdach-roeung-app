@@ -98,7 +98,7 @@
           <div class="absolute bottom-0 inset-x-0 z-30 p-5 sm:p-7 flex flex-col justify-end space-y-2.5">
             <div class="flex items-center flex-wrap gap-2">
               <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-md">🔥 កំពុងពេញនិយម</span>
-              <span v-if="sliderMovies[currentSlide]?.is_dubbed" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 border border-amber-400/40 text-amber-300">🎙️ សំឡេងខ្មែរ</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="sliderMovies[currentSlide]?.is_dubbed ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300' : 'bg-purple-500/20 border border-purple-400/40 text-purple-300'">{{ sliderMovies[currentSlide]?.is_dubbed ? '🎙️ សំឡេងមនុស្ស' : '🤖 សំឡេង AI' }}</span>
               <span class="text-xs text-amber-300 font-bold flex items-center gap-1">⭐ {{ sliderMovies[currentSlide]?.rating || '9.5' }}</span>
               <span class="text-xs text-slate-300">| {{ sliderMovies[currentSlide]?.release_year || '2025' }}</span>
             </div>
@@ -150,7 +150,7 @@
                 <!-- HD / Dubbed Badge -->
                 <div class="absolute top-2 left-2 flex items-center gap-1">
                   <span class="px-1.5 py-0.5 rounded bg-amber-500 text-black text-[9px] font-black uppercase shadow">HD</span>
-                  <span v-if="item.movie.is_dubbed" class="px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-[9px] font-bold text-amber-300">សំឡេងខ្មែរ</span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="item.movie.is_dubbed ? 'bg-black/75 backdrop-blur-md text-amber-300' : 'bg-purple-900/80 backdrop-blur-md text-purple-200'">{{ item.movie.is_dubbed ? 'សំឡេងមនុស្ស' : 'សំឡេង AI' }}</span>
                 </div>
 
                 <!-- Hover Play Icon Button -->
@@ -209,7 +209,7 @@
                 <!-- Rating & Format Badges -->
                 <div class="absolute bottom-2 left-2 flex items-center gap-1.5">
                   <span class="px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[10px] font-bold text-yellow-400">⭐ {{ movie.rating || '9.5' }}</span>
-                  <span v-if="movie.is_dubbed" class="px-1.5 py-0.5 rounded bg-amber-500/80 backdrop-blur-md text-[10px] font-bold text-black">សំឡេងខ្មែរ</span>
+                  <span class="px-1.5 py-0.5 rounded backdrop-blur-md text-[10px] font-bold" :class="movie.is_dubbed ? 'bg-amber-500/80 text-black' : 'bg-purple-600/80 text-white'">{{ movie.is_dubbed ? 'សំឡេងមនុស្ស' : 'សំឡេង AI' }}</span>
                 </div>
               </div>
 
@@ -248,8 +248,8 @@
           <!-- Dub / Sub Toggle -->
           <div class="flex items-center gap-2">
             <button @click="selectedLanguage = 'all'" :class="selectedLanguage === 'all' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">ទាំងអស់</button>
-            <button @click="selectedLanguage = 'dubbed'" :class="selectedLanguage === 'dubbed' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">🎙️ បញ្ចូលសំឡេងខ្មែរ</button>
-            <button @click="selectedLanguage = 'sub'" :class="selectedLanguage === 'sub' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">💬 អក្សររត់ខ្មែរ (Sub)</button>
+            <button @click="selectedLanguage = 'dubbed'" :class="selectedLanguage === 'dubbed' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">🎙️ បញ្ចូលសំឡេងមនុស្ស</button>
+            <button @click="selectedLanguage = 'sub'" :class="selectedLanguage === 'sub' ? 'text-amber-300 border-amber-400' : 'text-slate-400 border-transparent'" class="px-2.5 py-1 text-xs border-b-2 font-medium">🤖 បញ្ចូលសំឡេង AI</button>
           </div>
         </div>
 
@@ -550,7 +550,7 @@
             <span>•</span>
             <span>{{ selectedMovie.release_year || '2025' }}</span>
             <span>•</span>
-            <span class="text-amber-300">{{ selectedMovie.is_dubbed ? 'សំឡេងខ្មែរ' : 'អក្សររត់' }}</span>
+            <span class="text-amber-300">{{ selectedMovie.is_dubbed ? 'បញ្ចូលសំឡេងមនុស្ស' : 'បញ្ចូលសំឡេង AI' }}</span>
           </div>
 
           <!-- Overview Synopsis -->
