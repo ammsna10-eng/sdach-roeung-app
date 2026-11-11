@@ -284,23 +284,10 @@ const app = createApp({
     const isFullscreenLandscape = ref(false);
     let lastFullscreenToggle = 0;
 
-    const getOrCreateLandscapeStyle = () => {
-      let styleEl = document.getElementById('sdach-landscape-style');
-      if (!styleEl) {
-        styleEl = document.createElement('style');
-        styleEl.id = 'sdach-landscape-style';
-        document.head.appendChild(styleEl);
-      }
-      return styleEl;
-    };
-
     const exitFullscreenMode = () => {
-      console.log('[Fullscreen] Exiting fullscreen mode...');
       isFullscreenLandscape.value = false;
 
-      const styleEl = document.getElementById('sdach-landscape-style');
-      if (styleEl) styleEl.textContent = '';
-
+      // Exit standard HTML5 fullscreen
       if (document.fullscreenElement || document.webkitFullscreenElement) {
         if (document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
@@ -309,31 +296,34 @@ const app = createApp({
         }
       }
 
+      // Exit iOS native fullscreen
+      const video = document.getElementById('sdach-video-player');
+      if (video && typeof video.webkitExitFullscreen === 'function') {
+        try { video.webkitExitFullscreen(); } catch (e) {}
+      }
+
+      // Unlock screen orientation back to normal
       if (screen.orientation && screen.orientation.unlock) {
         try { screen.orientation.unlock(); } catch (e) {}
       }
 
-      const tg = window.Telegram?.WebApp;
-      if (tg?.exitFullscreen) {
-        try { tg.exitFullscreen(); } catch (e) {}
-      }
+      // Clean up style tag if present
+      const styleEl = document.getElementById('sdach-landscape-style');
+      if (styleEl) styleEl.textContent = '';
     };
 
-    const enterFullscreenMode = () => {
-      console.log('[Fullscreen] Entering fullscreen mode...');
+    const enterFullscreenMode = async () => {
       isFullscreenLandscape.value = true;
-
-      const wrapper = document.getElementById('sdach-player-wrapper');
       const video = document.getElementById('sdach-video-player');
-      const styleEl = getOrCreateLandscapeStyle();
+      const wrapper = document.getElementById('sdach-player-wrapper');
+
+      if (!video) return;
 
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const isMobile = isIOS || /Android/i.test(navigator.userAgent);
-      const isPortrait = window.innerHeight > window.innerWidth;
 
-      // 1. iOS Safari Native Player (Best performance for iPhone)
-      if (isIOS && video && typeof video.webkitEnterFullscreen === 'function') {
+      // 1. iOS: Use Apple's Native Fullscreen Video Player (100% immersive, zero status bar)
+      if (isIOS && typeof video.webkitEnterFullscreen === 'function') {
         try {
           video.webkitEnterFullscreen();
           const onIOSExit = () => {
@@ -343,104 +333,47 @@ const app = createApp({
           video.addEventListener('webkitendfullscreen', onIOSExit);
           return;
         } catch (e) {
-          console.warn('[Fullscreen] iOS native enter failed, fallback to CSS:', e);
+          console.warn('[Fullscreen] iOS webkitEnterFullscreen failed:', e);
         }
       }
 
-      // 2. Telegram Mini App Fullscreen API
-      const tg = window.Telegram?.WebApp;
-      if (tg?.requestFullscreen) {
-        try { tg.requestFullscreen(); } catch (e) {}
-      }
+      // 2. Android & Desktop: Call native requestFullscreen DIRECTLY on the <video> element
+      // Calling it on <video> (instead of wrapper) triggers the OS native media fullscreen
+      try {
+        if (video.requestFullscreen) {
+          await video.requestFullscreen();
+        } else if (video.webkitRequestFullscreen) {
+          await video.webkitRequestFullscreen();
+        } else if (wrapper && wrapper.requestFullscreen) {
+          await wrapper.requestFullscreen();
+        }
 
-      // 3. Native Fullscreen for Android & Desktop
-      let nativePromise = null;
-      if (wrapper && wrapper.requestFullscreen) {
-        nativePromise = wrapper.requestFullscreen();
-      } else if (wrapper && wrapper.webkitRequestFullscreen) {
-        nativePromise = wrapper.webkitRequestFullscreen();
-      } else if (video && video.requestFullscreen) {
-        nativePromise = video.requestFullscreen();
-      }
-
-      if (nativePromise && typeof nativePromise.then === 'function') {
-        nativePromise.then(() => {
-          if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape').catch(() => {});
-          }
-        }).catch((err) => {
-          console.log('[Fullscreen] Native blocked, using CSS fallback:', err);
-          applyCssRotation(styleEl, isMobile && isPortrait);
-        });
-      }
-
-      // 4. Fallback CSS Geometry
-      applyCssRotation(styleEl, isMobile && isPortrait);
-    };
-
-    const applyCssRotation = (styleEl, shouldRotate) => {
-      if (!styleEl) return;
-      if (shouldRotate) {
-        // Correct 90-degree mathematical rotation from top-left origin
-        styleEl.textContent = `
-          #sdach-player-wrapper {
-            position: fixed !important;
-            top: 0 !important;
-            left: 100vw !important;
-            width: 100vh !important;
-            height: 100vw !important;
-            max-width: none !important;
-            max-height: none !important;
-            transform: rotate(90deg) !important;
-            transform-origin: top left !important;
-            z-index: 999999 !important;
-            background: #000 !important;
-            aspect-ratio: unset !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          #sdach-player-wrapper video {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: contain !important;
-          }
-        `;
-      } else {
-        styleEl.textContent = `
-          #sdach-player-wrapper {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            max-width: none !important;
-            max-height: none !important;
-            transform: none !important;
-            z-index: 999999 !important;
-            background: #000 !important;
-            aspect-ratio: unset !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          #sdach-player-wrapper video {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: contain !important;
-          }
-        `;
+        // Lock to landscape for mobile
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[Fullscreen] Native video fullscreen failed:', err);
+        // Fallback: If browser blocks <video> fullscreen, expand wrapper
+        if (wrapper && wrapper.requestFullscreen) {
+          wrapper.requestFullscreen().catch(() => {});
+        }
       }
     };
 
     const toggleFullscreen = () => {
       const now = Date.now();
-      // Debounce: block repeated calls within 400ms to eliminate touch/click double-triggers
-      if (now - lastFullscreenToggle < 400) {
-        console.log('[Fullscreen] Toggle throttled to prevent double trigger');
-        return;
-      }
+      if (now - lastFullscreenToggle < 400) return;
       lastFullscreenToggle = now;
 
-      if (isFullscreenLandscape.value) {
+      // Check both Vue ref and actual document fullscreen state
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        isFullscreenLandscape.value
+      );
+
+      if (isCurrentlyFullscreen) {
         exitFullscreenMode();
       } else {
         enterFullscreenMode();
@@ -729,13 +662,15 @@ const app = createApp({
 
       // Listener សម្រាប់ auto-exit ពេល user ចុច Back Button លើ Mobile ឬចុច ESC លើ PC
       document.addEventListener('fullscreenchange', () => {
-        if (!document.fullscreenElement && isFullscreenLandscape.value) {
-          exitFullscreenMode();
+        isFullscreenLandscape.value = !!document.fullscreenElement;
+        if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) {
+          try { screen.orientation.unlock(); } catch (e) {}
         }
       });
       document.addEventListener('webkitfullscreenchange', () => {
-        if (!document.webkitFullscreenElement && isFullscreenLandscape.value) {
-          exitFullscreenMode();
+        isFullscreenLandscape.value = !!document.webkitFullscreenElement;
+        if (!document.webkitFullscreenElement && screen.orientation && screen.orientation.unlock) {
+          try { screen.orientation.unlock(); } catch (e) {}
         }
       });
 
