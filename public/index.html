@@ -40,6 +40,40 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link rel="stylesheet" href="/css/custom.css">
+  
+  <style>
+    /* Auto-Landscape CSS Fullscreen Fallback for Portrait Mobile */
+    @media (orientation: portrait) {
+      #sdach-player-wrapper.sdach-force-landscape,
+      .plyr--fullscreen-fallback.sdach-force-landscape {
+        position: fixed !important;
+        top: 0 !important;
+        left: 100vw !important;
+        width: 100vh !important;
+        height: 100vw !important;
+        max-width: none !important;
+        max-height: none !important;
+        transform: rotate(90deg) !important;
+        transform-origin: top left !important;
+        z-index: 9999999 !important;
+        background: #000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      #sdach-player-wrapper.sdach-force-landscape .plyr,
+      #sdach-player-wrapper.sdach-force-landscape video {
+        width: 100% !important;
+        height: 100% !important;
+        max-height: 100% !important;
+      }
+    }
+
+    /* Seek animation badges */
+    .seek-badge-pop {
+      opacity: 1 !important;
+      transform: translate(-50%, -50%) scale(1.1) !important;
+    }
+  </style>
 </head>
 <body class="bg-[#08060e] text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-black min-h-screen pb-24 overflow-x-hidden">
   <div id="app" v-cloak class="relative min-h-screen">
@@ -609,21 +643,31 @@
       </div>
     </div>
 
-    <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
-    <!-- 📺 CINEMATIC VIDEO PLAYER (POWERED BY PLYR) -->
+    <!-- 📺 CINEMATIC VIDEO PLAYER WITH DOUBLE-TAP SEEK -->
     <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden">
       
-      <!-- Minimalist Back Button (Top-Left) -->
-      <button 
-        @click="closePlayer" 
-        type="button"
-        class="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center justify-center text-lg active:scale-95 transition-all shadow-lg"
-        title="ត្រឡប់ក្រោយ (Back)">
-        ←
-      </button>
-
-      <!-- Player Wrapper -->
       <div id="sdach-player-wrapper" class="relative w-full h-full max-w-5xl flex items-center justify-center">
+        
+        <!-- Minimalist Back Button (Top-Left inside wrapper so it rotates together) -->
+        <button 
+          @click="closePlayer" 
+          type="button"
+          class="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center justify-center text-lg active:scale-95 transition-all shadow-lg"
+          title="ត្រឡប់ក្រោយ (Back)">
+          ←
+        </button>
+
+        <!-- YouTube-style Seek Animation Badges -->
+        <div id="sdach-seek-left" class="pointer-events-none absolute left-1/4 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md rounded-full w-20 h-20 text-white transition-all duration-300 opacity-0 scale-75 shadow-2xl border border-white/20">
+          <span class="text-2xl font-black">⟲</span>
+          <span class="text-xs font-black font-mono mt-0.5">-5 វិ</span>
+        </div>
+
+        <div id="sdach-seek-right" class="pointer-events-none absolute left-3/4 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md rounded-full w-20 h-20 text-white transition-all duration-300 opacity-0 scale-75 shadow-2xl border border-white/20">
+          <span class="text-2xl font-black">⟳</span>
+          <span class="text-xs font-black font-mono mt-0.5">+5 វិ</span>
+        </div>
+
         <video 
           id="sdach-video-player" 
           playsinline 
@@ -717,7 +761,7 @@
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   
   <!-- App Script -->
-  <script src="/js/app.js?v=plyr_cinema_v1"></script>
+  <script src="/js/app.js?v=cinema_doubletap_v4"></script>
 </body>
 </html>
 

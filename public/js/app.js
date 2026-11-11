@@ -239,7 +239,17 @@ const app = createApp({
 
     const closePlayer = () => {
       if (plyrInstance) {
+        if (plyrInstance.fullscreen && plyrInstance.fullscreen.active) {
+          try { plyrInstance.fullscreen.exit(); } catch(e) {}
+        }
         try { plyrInstance.stop(); } catch(e) {}
+      }
+      const wrapper = document.getElementById('sdach-player-wrapper');
+      if (wrapper) {
+        wrapper.classList.remove('sdach-force-landscape');
+      }
+      if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
       }
       isPlayerOpen.value = false;
       activeStreamUrl.value = '';
@@ -439,17 +449,122 @@ const app = createApp({
         if (!plyrInstance) {
           plyrInstance = new Plyr(v, {
             controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
-            fullscreen: { enabled: true, fallback: true, iosNative: true },
+            fullscreen: { enabled: true, fallback: 'force', iosNative: false },
+            seekTime: 5,
             keyboard: { focused: true, global: true },
             tooltips: { controls: false, seek: true }
           });
 
-          // Sync watch progress with Plyr
+          // Auto-Landscape Fullscreen Controller
+          const toggleAutoLandscape = (isEntering) => {
+            const wrapper = document.getElementById('sdach-player-wrapper');
+            const isPortrait = window.innerHeight > window.innerWidth;
+            const tg = window.Telegram?.WebApp;
+
+            if (isEntering) {
+              if (tg?.requestFullscreen) {
+                try { tg.requestFullscreen(); } catch (e) {}
+              }
+              if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(() => {});
+              }
+              if (isPortrait && wrapper) {
+                wrapper.classList.add('sdach-force-landscape');
+              }
+            } else {
+              if (wrapper) {
+                wrapper.classList.remove('sdach-force-landscape');
+              }
+              if (screen.orientation && screen.orientation.unlock) {
+                try { screen.orientation.unlock(); } catch (e) {}
+              }
+            }
+          };
+
+          plyrInstance.on('enterfullscreen', () => toggleAutoLandscape(true));
+          plyrInstance.on('exitfullscreen', () => toggleAutoLandscape(false));
+
+          // Watch history sync
           plyrInstance.on('timeupdate', () => {
             if (plyrInstance.currentTime && plyrInstance.duration) {
               saveWatchProgress(movie, plyrInstance.currentTime, plyrInstance.duration);
             }
           });
+
+          // YouTube-Style Double Tap / Double Click Seek Handlers
+          let seekBadgeTimer = null;
+          const triggerSeekBadge = (dir) => {
+            const el = document.getElementById(dir === 'backward' ? 'sdach-seek-left' : 'sdach-seek-right');
+            const other = document.getElementById(dir === 'backward' ? 'sdach-seek-right' : 'sdach-seek-left');
+            if (other) other.classList.remove('seek-badge-pop');
+            if (el) {
+              clearTimeout(seekBadgeTimer);
+              el.classList.add('seek-badge-pop');
+              seekBadgeTimer = setTimeout(() => {
+                el.classList.remove('seek-badge-pop');
+              }, 600);
+            }
+          };
+
+          const handleSeekAction = (clientX, clientY) => {
+            const wrapper = document.getElementById('sdach-player-wrapper');
+            if (!wrapper || !plyrInstance) return;
+
+            const isRotated = wrapper.classList.contains('sdach-force-landscape');
+            let isLeft = false;
+
+            if (isRotated) {
+              // In 90deg clockwise rotation, top of viewport is the left side of the video
+              isLeft = clientY < window.innerHeight / 2;
+            } else {
+              const rect = wrapper.getBoundingClientRect();
+              isLeft = clientX < (rect.left + rect.width / 2);
+            }
+
+            if (isLeft) {
+              plyrInstance.currentTime = Math.max(0, plyrInstance.currentTime - 5);
+              triggerSeekBadge('backward');
+            } else {
+              plyrInstance.currentTime = Math.min(plyrInstance.duration || 999999, plyrInstance.currentTime + 5);
+              triggerSeekBadge('forward');
+            }
+          };
+
+          // Intercept double-click for desktop
+          const wrapperEl = document.getElementById('sdach-player-wrapper');
+          if (wrapperEl) {
+            wrapperEl.addEventListener('dblclick', (e) => {
+              if (e.target.closest('.plyr__controls') || e.target.closest('button')) return;
+              e.stopPropagation();
+              e.preventDefault();
+              handleSeekAction(e.clientX, e.clientY);
+            }, true);
+
+            // Double-tap handler for touch devices (Mobile)
+            let lastTap = 0;
+            let tapX = 0;
+            let tapY = 0;
+            wrapperEl.addEventListener('touchend', (e) => {
+              if (e.target.closest('.plyr__controls') || e.target.closest('button')) return;
+              const touch = e.changedTouches ? e.changedTouches[0] : null;
+              if (!touch) return;
+
+              const now = Date.now();
+              const timeDiff = now - lastTap;
+              const dist = Math.hypot(touch.clientX - tapX, touch.clientY - tapY);
+
+              if (timeDiff < 320 && dist < 45) {
+                e.preventDefault();
+                e.stopPropagation();
+                lastTap = 0;
+                handleSeekAction(touch.clientX, touch.clientY);
+              } else {
+                lastTap = now;
+                tapX = touch.clientX;
+                tapY = touch.clientY;
+              }
+            }, { passive: false });
+          }
         }
 
         // Set the new video source
@@ -676,6 +791,17 @@ const app = createApp({
         isFullscreenLandscape.value = !!document.webkitFullscreenElement;
         if (!document.webkitFullscreenElement && screen.orientation && screen.orientation.unlock) {
           try { screen.orientation.unlock(); } catch (e) {}
+        }
+      });\
+
+      // Orientation change handler: Remove forced landscape if user rotates phone to landscape
+      window.addEventListener('resize', () => {
+        const wrapper = document.getElementById('sdach-player-wrapper');
+        if (!wrapper) return;
+        if (window.innerWidth > window.innerHeight) {
+          wrapper.classList.remove('sdach-force-landscape');
+        } else if (plyrInstance && plyrInstance.fullscreen && plyrInstance.fullscreen.active) {
+          wrapper.classList.add('sdach-force-landscape');
         }
       });
 
