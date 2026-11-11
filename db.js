@@ -18,9 +18,14 @@ function writeDB(data) {
 function getCurrentUser(req, db) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace('Bearer ', '') || req.query.token;
-  if (!token) return db.users[0] || null;
-  const userId = token.replace('token_', '');
-  return db.users.find(u => String(u.id) === String(userId)) || db.users[0] || null;
+  const user = (!token) ? (db.users[0] || null) : ((db.users.find(u => String(u.id) === String(token.replace('token_', '')))) || db.users[0] || null);
+  if (user && user.is_vip && user.vip_expires_at) {
+    if (new Date(user.vip_expires_at).getTime() < Date.now()) {
+      user.is_vip = false;
+      writeDB(db);
+    }
+  }
+  return user;
 }
 
 module.exports = { readDB, writeDB, getCurrentUser };

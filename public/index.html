@@ -402,6 +402,20 @@
               <span v-if="user.is_vip" class="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[10px] font-black tracking-wider uppercase shadow">VIP PASS</span>
             </div>
             <p class="text-xs text-amber-400 font-mono mt-0.5"><span v-if="user.username">@{{ user.username }} • </span>ID: {{ user.id }}</p>
+
+            <!-- 👑 VIP Expiration Tag / Card placed right below ID -->
+            <div v-if="user.is_vip && user.vip_expires_at" class="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/20 to-amber-500/15 border border-amber-400/40 text-amber-300 shadow-lg shadow-amber-500/10 backdrop-blur-md">
+              <span class="text-xs animate-pulse">👑</span>
+              <span class="text-[11px] font-medium text-amber-200">ថ្ងៃផុតកំណត់៖</span>
+              <span class="text-xs font-black text-amber-300 font-mono tracking-wide drop-shadow">{{ formatVipExpire(user.vip_expires_at) }}</span>
+              <span v-if="getVipRemainingDays(user.vip_expires_at) !== null" class="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-200 font-bold ml-0.5">
+                នៅសល់ {{ getVipRemainingDays(user.vip_expires_at) }} ថ្ងៃ
+              </span>
+            </div>
+            <div v-else-if="user.is_vip" class="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/20 to-amber-500/15 border border-amber-400/40 text-amber-300 shadow-lg shadow-amber-500/10 backdrop-blur-md">
+              <span class="text-xs">👑</span>
+              <span class="text-[11px] font-bold text-amber-200">សមាជិក VIP (គ្មានថ្ងៃផុតកំណត់)</span>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3 pt-2">
@@ -411,7 +425,7 @@
             </div>
             <div class="p-3 rounded-2xl bg-white/5 border border-white/10">
               <span class="text-xs text-slate-400">ស្ថានភាពគណនី</span>
-              <div :class="user.is_vip ? 'text-emerald-400' : 'text-slate-300'" class="text-sm font-bold mt-1">{{ user.is_vip ? 'VIP Member' : 'Standard User' }}</div>
+              <div :class="user.is_vip ? 'text-amber-300' : 'text-slate-300'" class="text-sm font-bold mt-1">{{ user.is_vip ? 'សមាជិក VIP' : 'គណនីធម្មតា' }}</div>
             </div>
           </div>
         </div>

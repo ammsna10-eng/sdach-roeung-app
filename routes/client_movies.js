@@ -24,7 +24,12 @@ router.get('/user/movies', (req, res) => {
         }
       });
     }
-    const isDub = m.language_type === 'dub' || m.language_type === 'human' || m.language_type === 'khmer_dubbed' || m.is_dubbed === true;
+    let isDub;
+    if (m.language_type !== undefined && m.language_type !== null) {
+      isDub = m.language_type === 'dub' || m.language_type === 'human' || m.language_type === 'khmer_dubbed';
+    } else {
+      isDub = m.is_dubbed === true;
+    }
     return {
       ...safeMovie,
       genres: cleanGenres,

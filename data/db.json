@@ -193,7 +193,7 @@
       "is_popular": true,
       "is_latest": true,
       "is_dubbed": true,
-      "country_id": 1794333814374,
+      "country_id": 1,
       "genres": [
         {
           "id": 2,
@@ -202,10 +202,6 @@
         {
           "id": 4,
           "name": "Mystery / អាថ៌កំបាំង"
-        },
-        {
-          "id": 1794400511532,
-          "name": "បញ្ចូលសម្លេង Ai"
         }
       ],
       "comments": []

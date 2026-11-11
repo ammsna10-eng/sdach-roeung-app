@@ -131,12 +131,39 @@ const app = createApp({
           user.value = {
             ...res.data.user,
             wallet_balance: parseFloat(res.data.wallet_balance || res.data.user.wallet_balance || 0),
-            is_vip: Boolean(res.data.is_vip || res.data.user.is_vip)
+            is_vip: Boolean(res.data.is_vip || res.data.user.is_vip),
+            vip_expires_at: res.data.vip_expires_at || res.data.user.vip_expires_at || null
           };
           localStorage.setItem('auth_token', res.data.token);
           axios.defaults.headers.common['Authorization'] = 'Bearer ' + res.data.token;
         }
       } catch (err) {}
+    };
+
+    const formatVipExpire = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const khmerMonths = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = khmerMonths[d.getMonth()];
+        const year = d.getFullYear();
+        return `${day} ${month} ${year}`;
+      } catch (e) {
+        return dateStr;
+      }
+    };
+
+    const getVipRemainingDays = (dateStr) => {
+      if (!dateStr) return null;
+      try {
+        const diff = new Date(dateStr).getTime() - Date.now();
+        if (diff <= 0) return 0;
+        return Math.ceil(diff / (1000 * 60 * 60 * 24));
+      } catch (e) {
+        return null;
+      }
     };
 
     const loadData = async () => {
@@ -163,8 +190,19 @@ const app = createApp({
         if (vipRes.data) vipPlans.value = vipRes.data;
         try {
           const meRes = await axios.get('/api/me');
-          if (meRes.data && meRes.data.purchased_movies) {
-            purchasedMovies.value = meRes.data.purchased_movies;
+          if (meRes.data) {
+            if (meRes.data.user) {
+              user.value = {
+                ...user.value,
+                ...meRes.data.user,
+                wallet_balance: parseFloat(meRes.data.user.wallet_balance || 0),
+                is_vip: Boolean(meRes.data.user.is_vip),
+                vip_expires_at: meRes.data.user.vip_expires_at || null
+              };
+            }
+            if (meRes.data.purchased_movies) {
+              purchasedMovies.value = meRes.data.purchased_movies;
+            }
           }
         } catch (e) {}
       } catch (e) {}
@@ -463,7 +501,8 @@ const app = createApp({
       selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, isVideoBlocked, videoErrorMessage, currentEpisode, movieSeasons,
       isPurchased, isBuying, purchasedMovies, continueWatching, formatDuration, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
       adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
-      openTopup, openVip, downloadQR, nextSlide, prevSlide, onTouchStart, onTouchEnd
+      openTopup, openVip, downloadQR, nextSlide, prevSlide, onTouchStart, onTouchEnd,
+      formatVipExpire, getVipRemainingDays
     };
   }
 });

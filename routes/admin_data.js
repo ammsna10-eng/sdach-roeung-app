@@ -101,8 +101,12 @@ router.post('/data/movies', (req, res) => {
   const dbGenres = db.genres || [];
   const cleanGenres = normalizeGenres(req.body.genres, dbGenres);
 
-  const langType = req.body.language_type || 'dub';
-  const isDub = langType === 'dub' || langType === 'khmer_dubbed' || langType === 'human' || req.body.is_dubbed === true;
+  let isDub;
+  if (req.body.language_type !== undefined && req.body.language_type !== null) {
+    isDub = req.body.language_type === 'dub' || req.body.language_type === 'human' || req.body.language_type === 'khmer_dubbed';
+  } else {
+    isDub = req.body.is_dubbed === true;
+  }
 
   const movie = {
     id: Date.now(),
@@ -144,17 +148,27 @@ router.put('/data/movies/:id', (req, res) => {
   if (!movie) return res.status(404).json({ message: 'Movie not found' });
 
   const cleanGenres = req.body.genres ? normalizeGenres(req.body.genres, dbGenres) : normalizeGenres(movie.genres, dbGenres);
-  const langType = req.body.language_type !== undefined ? req.body.language_type : movie.language_type;
-  const isDub = langType === 'dub' || langType === 'khmer_dubbed' || langType === 'human' || req.body.is_dubbed === true;
+  let isDub;
+  if (req.body.language_type !== undefined && req.body.language_type !== null) {
+    isDub = req.body.language_type === 'dub' || req.body.language_type === 'human' || req.body.language_type === 'khmer_dubbed';
+  } else if (req.body.is_dubbed !== undefined && req.body.is_dubbed !== null) {
+    isDub = Boolean(req.body.is_dubbed);
+  } else {
+    isDub = movie.language_type === 'dub' || movie.is_dubbed === true;
+  }
 
-  Object.assign(movie, req.body, {
+  const updateData = { ...req.body };
+  delete updateData.is_dubbed;
+  delete updateData.language_type;
+
+  Object.assign(movie, updateData, {
     genres: cleanGenres,
     language_type: isDub ? 'dub' : 'sub',
     is_dubbed: isDub,
     price: req.body.price !== undefined ? parseFloat(req.body.price) : movie.price,
     rating: req.body.rating !== undefined ? parseFloat(req.body.rating) : movie.rating,
-    is_popular: req.body.is_popular !== undefined ? Boolean(req.body.is_popular) : true,
-    is_slider: req.body.is_slider !== undefined ? Boolean(req.body.is_slider) : true
+    is_popular: req.body.is_popular !== undefined ? Boolean(req.body.is_popular) : (movie.is_popular !== undefined ? movie.is_popular : true),
+    is_slider: req.body.is_slider !== undefined ? Boolean(req.body.is_slider) : (movie.is_slider !== undefined ? movie.is_slider : true)
   });
 
   writeDB(db);
