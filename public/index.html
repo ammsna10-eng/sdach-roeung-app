@@ -642,25 +642,27 @@
             <button @click="closePlayer" class="px-4 py-2 rounded-xl bg-white/20 text-white text-xs font-bold active:scale-95">បិទ</button>
           </div>
         </div>
+      </div>
 
-        <!-- Top Controls: Close + Fullscreen buttons -->
-        <div class="absolute top-3 right-3 z-[9999] flex items-center gap-2" style="pointer-events: none;">
-          <!-- Fullscreen / Landscape Toggle Button -->
-          <button 
-            @click="toggleFullscreen"
-            @click.native="toggleFullscreen"
-            onclick="console.log('Native click triggered'); if(window.vueApp && window.vueApp.toggleFullscreen) { window.vueApp.toggleFullscreen(); }"
-            class="px-3 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95 flex items-center gap-1.5"
-            style="pointer-events: auto; touch-action: manipulation; min-width: 44px; min-height: 44px;">
-            <span v-if="!isFullscreenLandscape">⛶ ពេញអេក្រង់</span>
-            <span v-else>⤡ បង្រួម</span>
-          </button>
-          <!-- Close Button -->
-          <button @click="closePlayer" class="px-3.5 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95"
-            style="pointer-events: auto; touch-action: manipulation; min-width: 44px; min-height: 44px;">
-            ✕ បិទ
-          </button>
-        </div>
+      <!-- Top Controls: Close + Fullscreen buttons (MOVED OUTSIDE VIDEO WRAPPER) -->
+      <div class="fixed top-3 right-3 z-[9999] flex items-center gap-2">
+        <!-- Fullscreen / Landscape Toggle Button -->
+        <button 
+          @click="toggleFullscreen"
+          @click.native="toggleFullscreen"
+          @touchstart.prevent="toggleFullscreen"
+          onclick="console.log('Native click triggered'); if(window.vueApp && window.vueApp.toggleFullscreen) { window.vueApp.toggleFullscreen(); }"
+          class="px-3 py-1.5 rounded-xl bg-black/90 backdrop-blur-md text-white text-xs font-bold border-2 border-amber-500/50 hover:border-amber-500 active:scale-95 flex items-center gap-1.5 shadow-2xl shadow-amber-500/20"
+          style="touch-action: manipulation; min-width: 44px; min-height: 44px;">
+          <span v-if="!isFullscreenLandscape">⛶ ពេញអេក្រង់</span>
+          <span v-else>⤡ បង្រួម</span>
+        </button>
+        <!-- Close Button -->
+        <button @click="closePlayer" 
+          class="px-3.5 py-1.5 rounded-xl bg-black/90 backdrop-blur-md text-white text-xs font-bold border-2 border-white/30 hover:border-white active:scale-95 shadow-2xl"
+          style="touch-action: manipulation; min-width: 44px; min-height: 44px;">
+          ✕ បិទ
+        </button>
       </div>
     </div>
 
