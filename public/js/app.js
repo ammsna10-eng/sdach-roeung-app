@@ -415,11 +415,40 @@ const app = createApp({
       isQrModalOpen.value = true;
     };
 
-    // Auto slide
-    setInterval(() => {
+    const nextSlide = () => {
       if (sliderMovies.value.length > 0) {
         currentSlide.value = (currentSlide.value + 1) % sliderMovies.value.length;
       }
+    };
+
+    const prevSlide = () => {
+      if (sliderMovies.value.length > 0) {
+        currentSlide.value = (currentSlide.value - 1 + sliderMovies.value.length) % sliderMovies.value.length;
+      }
+    };
+
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    const onTouchStart = (e) => {
+      touchStartX = e.changedTouches ? e.changedTouches[0].screenX : 0;
+    };
+
+    const onTouchEnd = (e) => {
+      touchEndX = e.changedTouches ? e.changedTouches[0].screenX : 0;
+      const swipeDistance = touchEndX - touchStartX;
+      if (Math.abs(swipeDistance) > 40) {
+        if (swipeDistance < 0) {
+          nextSlide();
+        } else {
+          prevSlide();
+        }
+      }
+    };
+
+    // Auto slide
+    setInterval(() => {
+      nextSlide();
     }, 4500);
 
     onMounted(async () => {
