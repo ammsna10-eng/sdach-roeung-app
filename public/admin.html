@@ -153,6 +153,31 @@
     <!-- Application Bundle -->
     <!-- 🖼️ Helper script for Direct Poster Upload & Image Paste in Admin Panel -->
     <script>
+      (function() {
+        var origOpen = XMLHttpRequest.prototype.open;
+        var origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function(method, url) {
+          this._reqMethod = method;
+          this._reqUrl = url;
+          return origOpen.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.send = function(body) {
+          if (this._reqMethod === 'POST' && this._reqUrl && this._reqUrl.includes('/admin/data/movies') && !this._reqUrl.includes('/broadcast-telegram') && typeof body === 'string') {
+            var chk = document.getElementById('auto-broadcast-telegram-checkbox');
+            if (chk) {
+              try {
+                var parsed = JSON.parse(body);
+                parsed.is_send_to_channel = chk.checked;
+                parsed.broadcast = chk.checked;
+                parsed.notify_telegram = chk.checked;
+                body = JSON.stringify(parsed);
+              } catch (e) {}
+            }
+          }
+          return origSend.call(this, body);
+        };
+      })();
+
       document.addEventListener('DOMContentLoaded', function() {
         // Observe DOM for poster inputs and attach file upload / paste helpers
         var observer = new MutationObserver(function() {
@@ -188,6 +213,30 @@
               });
             }
           });
+          // Auto Broadcast Toggle Switch in Movie Form Modal
+          var overviewTextarea = document.querySelector('textarea');
+          if (overviewTextarea && !document.getElementById('tg-broadcast-toggle-wrapper')) {
+            var toggleBox = document.createElement('div');
+            toggleBox.id = 'tg-broadcast-toggle-wrapper';
+            toggleBox.className = 'p-3 my-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-left';
+            toggleBox.innerHTML = 
+              '<div class="flex items-center gap-2.5">' +
+                '<span class="text-xl">📢</span>' +
+                '<div>' +
+                  '<div class="text-xs font-bold text-amber-300">ផ្ញើដំណឹងរឿងថ្មីនេះទៅ Telegram ស្វ័យប្រវត្តិ (Broadcast)</div>' +
+                  '<div class="text-[11px] text-gray-400">ផ្ញើ Poster + ចំណងជើង + ប៊ូតុងទស្សនា ទៅកាន់សមាជិកទាំងអស់</div>' +
+                '</div>' +
+              '</div>' +
+              '<label class="relative inline-flex items-center cursor-pointer ml-3 shrink-0">' +
+                '<input type="checkbox" id="auto-broadcast-telegram-checkbox" class="sr-only peer" checked>' +
+                '<div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>' +
+              '</label>';
+
+            if (overviewTextarea.parentNode && overviewTextarea.parentNode.parentNode) {
+              overviewTextarea.parentNode.parentNode.insertBefore(toggleBox, overviewTextarea.parentNode.nextSibling);
+            }
+          }
+
         });
 
         observer.observe(document.body, { childList: true, subtree: true });

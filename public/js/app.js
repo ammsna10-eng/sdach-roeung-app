@@ -493,6 +493,24 @@ const app = createApp({
       await initTelegram();
       await loadData();
       loadWatchHistory();
+
+      // Deep link support from Telegram broadcast notifications
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        let targetMovieId = urlParams.get('movie');
+        const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+        if (!targetMovieId && startParam && startParam.startsWith('movie_')) {
+          targetMovieId = startParam.replace('movie_', '');
+        }
+        if (targetMovieId) {
+          const m = movies.value.find(item => String(item.id) === String(targetMovieId));
+          if (m) {
+            openMovie(m);
+          }
+        }
+      } catch (err) {
+        console.warn('Deep link detection error:', err);
+      }
     });
 
     return {

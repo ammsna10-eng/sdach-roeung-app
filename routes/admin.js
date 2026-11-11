@@ -222,9 +222,30 @@ router.delete('/data/vip-plans/:id', (req, res) => {
   res.json({ message: 'Plan deleted' });
 });
 
+const { broadcastNewMovie } = require('../services/telegram_notifier');
+
 // Broadcast
-router.post('/data/movies/:id/broadcast-telegram', (req, res) => {
-  res.json({ message: 'Broadcasted to Telegram channel successfully!' });
+router.post('/data/movies/:id/broadcast-telegram', async (req, res) => {
+  const db = readDB();
+  const movieId = parseInt(req.params.id);
+  const movie = (db.movies || []).find(m => m.id === movieId);
+  if (!movie) {
+    return res.status(404).json({ message: 'រកមិនឃើញទិន្នន័យភាពយន្តឡើយ (Movie not found)' });
+  }
+
+  try {
+    const report = await broadcastNewMovie(movie);
+    movie.is_send_to_channel = true;
+    writeDB(db);
+    res.json({
+      message: `បានផ្សាយទៅ Telegram ជោគជ័យ! (ផ្ញើបាន ${report.sent_count} នាក់)`,
+      success: true,
+      report
+    });
+  } catch (err) {
+    console.error('Error broadcasting movie:', err);
+    res.status(500).json({ message: 'មានបញ្ហាក្នុងការផ្សាយទៅកាន់ Telegram: ' + err.message });
+  }
 });
 
 // Mount other admin routers

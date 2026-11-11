@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { readDB, writeDB } = require('../db');
+const { broadcastNewMovie } = require('../services/telegram_notifier');
 
 function paginate(arr = [], page = 1, perPage = 10) {
   const p = Math.max(1, parseInt(page) || 1);
@@ -132,12 +133,28 @@ router.post('/data/movies', (req, res) => {
     is_dubbed: isDub,
     country_id: req.body.country_id ? Number(req.body.country_id) : 1,
     genres: cleanGenres,
-    comments: []
+    comments: [],
+    is_send_to_channel: Boolean(req.body.is_send_to_channel)
   };
+
+  const shouldBroadcast = req.body.is_send_to_channel === true || 
+                          req.body.broadcast === true || 
+                          req.body.notify_telegram === true;
+
+  if (shouldBroadcast) {
+    movie.is_send_to_channel = true;
+  }
 
   db.movies = db.movies || [];
   db.movies.unshift(movie);
   writeDB(db);
+
+  if (shouldBroadcast) {
+    broadcastNewMovie(movie).catch(err => {
+      console.error('Background telegram broadcast failed:', err.message);
+    });
+  }
+
   res.json({ message: 'បានបង្កើតរឿងថ្មីជោគជ័យ!', movie });
 });
 

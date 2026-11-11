@@ -1,5 +1,6 @@
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
+const { readDB, writeDB } = require('./db');
 
 dotenv.config();
 
@@ -16,6 +17,44 @@ const bot = new Telegraf(BOT_TOKEN);
 
 bot.start((ctx) => {
   const firstName = ctx.from?.first_name || 'មិត្តភក្តិ';
+  const tgUser = ctx.from;
+
+  // Auto register Telegram user in database for broadcasts & Mini App sync
+  if (tgUser && tgUser.id) {
+    try {
+      const db = readDB();
+      db.users = db.users || [];
+      const exists = db.users.some(u => String(u.telegram_id) === String(tgUser.id) || String(u.id) === String(tgUser.id));
+      if (!exists) {
+        db.users.push({
+          id: tgUser.id,
+          telegram_id: String(tgUser.id),
+          first_name: tgUser.first_name || 'User',
+          last_name: tgUser.last_name || '',
+          username: tgUser.username || '',
+          photo_url: null,
+          wallet_balance: 0.0,
+          is_vip: false,
+          vip_expires_at: null,
+          role: 'user',
+          created_at: new Date().toISOString()
+        });
+        writeDB(db);
+        console.log(`👤 New Telegram user registered via bot /start: ${tgUser.first_name} (${tgUser.id})`);
+      }
+    } catch (err) {
+      console.warn('Error registering user from /start:', err.message);
+    }
+  }
+
+  // Handle deep-link start payload (e.g., /start movie_12345)
+  const payload = ctx.startPayload;
+  let targetUrl = WEBAPP_URL;
+  if (payload && payload.startsWith('movie_')) {
+    const movieId = payload.replace('movie_', '');
+    targetUrl = `${WEBAPP_URL}/?movie=${movieId}`;
+  }
+
   const welcomeText = `👑 <b>សូមស្វាគមន៍មកកាន់ ស្ដេចរឿង (Sdach Roeung)</b>\n\n` +
     `ជម្រាបសួរលោកអ្នក <b>${firstName}</b>! 👋\n` +
     `រីករាយទស្សនាភាពយន្តល្បីៗ រឿងភាគ និងរឿងបញ្ចូលសំឡេងខ្មែរជាច្រើនរាប់មិនអស់ ដោយសេរីនៅលើ Telegram Mini App ស្ដេចរឿង!\n\n` +
@@ -27,7 +66,7 @@ bot.start((ctx) => {
   return ctx.replyWithHTML(
     welcomeText,
     Markup.inlineKeyboard([
-      [Markup.button.webApp('🍿 បើកទស្សនារឿង (Open App)', WEBAPP_URL)],
+      [Markup.button.webApp('🍿 បើកទស្សនារឿង (Open App)', targetUrl)],
       [Markup.button.url('📢 ចូលរួម Channel ផ្លូវការ', 'https://t.me/Sdach_Roeung')]
     ])
   );
