@@ -678,3 +678,19 @@ const app = createApp({
 });
 
 app.mount('#app');
+
+// Expose app methods to window for debugging and fallback inline handlers
+const instance = app._instance.proxy;
+window.vueApp = {
+  toggleFullscreen: () => {
+    console.log('[Window] toggleFullscreen called via window.vueApp');
+    if (instance && instance.toggleFullscreen) {
+      instance.toggleFullscreen();
+    } else {
+      console.error('[Window] toggleFullscreen not found in Vue instance');
+    }
+  },
+  isFullscreenLandscape: () => instance?.isFullscreenLandscape || false
+};
+
+console.log('[Vue] App mounted successfully, window.vueApp exposed:', window.vueApp);
