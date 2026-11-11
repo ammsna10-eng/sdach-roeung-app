@@ -38,6 +38,7 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link rel="stylesheet" href="/css/custom.css">
 </head>
 <body class="bg-[#08060e] text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-black min-h-screen pb-24 overflow-x-hidden">
@@ -609,44 +610,30 @@
     </div>
 
     <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
-    <!-- 📺 CLEAN CINEMATIC VIDEO PLAYER MODAL -->
+    <!-- 📺 CINEMATIC VIDEO PLAYER (POWERED BY PLYR) -->
     <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden">
       
-      <!-- Minimalist Professional Back/Close Button (Top-Left) -->
+      <!-- Minimalist Back Button (Top-Left) -->
       <button 
         @click="closePlayer" 
         type="button"
-        class="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white/90 hover:text-white border border-white/20 flex items-center justify-center text-lg active:scale-95 transition-all shadow-lg"
+        class="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center justify-center text-lg active:scale-95 transition-all shadow-lg"
         title="ត្រឡប់ក្រោយ (Back)">
         ←
       </button>
 
-      <!-- Video Player Wrapper (Responsive: fills screen in landscape) -->
+      <!-- Player Wrapper -->
       <div id="sdach-player-wrapper" class="relative w-full h-full max-w-5xl flex items-center justify-center">
         <video 
           id="sdach-video-player" 
-          :src="activeStreamUrl" 
-          controls 
           playsinline 
           webkit-playsinline 
           x5-playsinline
-          preload="auto" 
-          class="w-full h-full max-h-screen object-contain"
-          @error="onVideoError"
+          class="w-full h-full object-contain"
         ></video>
 
-        <!-- Tap to play overlay (iOS fallback) -->
-        <div v-if="isVideoBlocked" @click="resumePlayback" 
-             class="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center cursor-pointer">
-          <div class="text-white text-center p-6">
-            <div class="text-6xl mb-4">▶️</div>
-            <div class="text-xl font-bold">ចុចទីនេះដើម្បីទស្សនា</div>
-            <div class="text-sm text-gray-300 mt-2">Tap to Play</div>
-          </div>
-        </div>
-
         <!-- Error message overlay -->
-        <div v-if="videoErrorMessage" class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center p-6">
+        <div v-if="videoErrorMessage" class="absolute inset-0 z-30 bg-black/90 flex flex-col items-center justify-center p-6">
           <div class="text-red-500 text-6xl mb-4">⚠️</div>
           <div class="text-white text-center">
             <div class="text-xl font-bold mb-2">មានបញ្ហាក្នុងការចាក់វីដេអូ</div>
@@ -726,8 +713,11 @@
 
   </div> <!-- End #app -->
 
+  <!-- Plyr JS -->
+  <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+  
   <!-- App Script -->
-  <script src="/js/app.js?v=clean_cinema_v2"></script>
+  <script src="/js/app.js?v=plyr_cinema_v1"></script>
 </body>
 </html>
 

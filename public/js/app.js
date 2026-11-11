@@ -3,6 +3,8 @@ const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
 const app = createApp({
   setup() {
+    let plyrInstance = null;
+    
     const activeTab = ref('home');
     const user = ref({
       id: 924441299,
@@ -236,23 +238,15 @@ const app = createApp({
     };
 
     const closePlayer = () => {
-      if (isFullscreenLandscape.value) {
-        exitFullscreenMode();
+      if (plyrInstance) {
+        try { plyrInstance.stop(); } catch(e) {}
       }
-      
-      // Exit Telegram fullscreen if active
+      isPlayerOpen.value = false;
+      activeStreamUrl.value = '';
+      videoErrorMessage.value = '';
       const tg = window.Telegram?.WebApp;
       if (tg?.exitFullscreen) {
         try { tg.exitFullscreen(); } catch (e) {}
-      }
-      
-      isPlayerOpen.value = false;
-      activeStreamUrl.value = '';
-      isVideoBlocked.value = false;
-      videoErrorMessage.value = '';
-      const v = document.getElementById('sdach-video-player');
-      if (v) {
-        try { v.pause(); v.src = ''; } catch (e) {}
       }
     };
 
@@ -440,42 +434,40 @@ const app = createApp({
 
       nextTick(() => {
         const v = document.getElementById('sdach-video-player');
-        if (v) {
-          if (v.src !== url) {
-            v.src = url;
-          }
+        if (!v) return;
 
-          const hist = continueWatching.value.find(item => String(item.movie?.id) === String(movie.id));
-          if (hist && hist.currentTime > 5 && hist.percent < 95) {
-            try { v.currentTime = hist.currentTime; } catch (e) {}
-          }
+        if (!plyrInstance) {
+          plyrInstance = new Plyr(v, {
+            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
+            fullscreen: { enabled: true, fallback: true, iosNative: true },
+            keyboard: { focused: true, global: true },
+            tooltips: { controls: false, seek: true }
+          });
 
-          let lastSave = 0;
-          v.ontimeupdate = () => {
-            const now = Date.now();
-            if (now - lastSave > 2500 && v.duration) {
-              lastSave = now;
-              saveWatchProgress(movie, v.currentTime, v.duration);
+          // Sync watch progress with Plyr
+          plyrInstance.on('timeupdate', () => {
+            if (plyrInstance.currentTime && plyrInstance.duration) {
+              saveWatchProgress(movie, plyrInstance.currentTime, plyrInstance.duration);
             }
-          };
-
-          v.onpause = () => {
-            if (v.duration) saveWatchProgress(movie, v.currentTime, v.duration);
-          };
-          v.onended = () => {
-            if (v.duration) saveWatchProgress(movie, v.duration, v.duration);
-          };
-
-          const playPromise = v.play();
-          if (playPromise !== undefined) {
-            playPromise.then(() => {
-              isVideoBlocked.value = false;
-            }).catch(err => {
-              console.log('Autoplay deferred by browser policy:', err);
-              isVideoBlocked.value = true;
-            });
-          }
+          });
         }
+
+        // Set the new video source
+        plyrInstance.source = {
+          type: 'video',
+          sources: [{ src: url, type: 'video/mp4' }]
+        };
+
+        // Restore watch history position
+        const hist = continueWatching.value.find(item => String(item.movie?.id) === String(movie.id));
+        if (hist && hist.currentTime > 5 && hist.percent < 95) {
+          plyrInstance.currentTime = hist.currentTime;
+        }
+
+        // Auto-play
+        setTimeout(() => {
+          plyrInstance.play().catch(e => console.log('Autoplay deferred:', e));
+        }, 100);
       });
     };
 
