@@ -38,6 +38,20 @@ app.use('/api', require('./routes/client_comments'));
 
 app.use('/api', require('./routes/aba_payment'));
 
+// Secure Database Export / Pre-flight Sync API
+app.get('/api/export-db', (req, res) => {
+  const secret = req.query.secret || req.headers['x-sync-secret'];
+  const expectedSecret = process.env.SYNC_SECRET || 'sdach_db_sync_secret_2026_x9k2';
+  const isAdmin = req.session && req.session.admin;
+  if (!isAdmin && secret !== expectedSecret) {
+    return res.status(403).json({ error: 'Unauthorized: Invalid sync secret' });
+  }
+  const { readDB } = require('./db');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="db_backup_${Date.now()}.json"`);
+  res.send(JSON.stringify(readDB(), null, 2));
+});
+
 // Admin API routes
 app.use('/admin', require('./routes/admin'));
 

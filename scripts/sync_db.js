@@ -28,7 +28,7 @@ const BACKUP_DIR = path.join(__dirname, '..', 'data', 'backups');
 async function syncDatabase() {
   console.log(`[SYNC] Connecting to live server: ${SERVER_URL} ...`);
   
-  const targetUrl = new URL(`/admin/export-db?secret=${SYNC_SECRET}`, SERVER_URL);
+  const targetUrl = new URL(`/api/export-db?secret=${SYNC_SECRET}`, SERVER_URL);
   const client = targetUrl.protocol === 'https:' ? https : http;
 
   const data = await new Promise((resolve, reject) => {
