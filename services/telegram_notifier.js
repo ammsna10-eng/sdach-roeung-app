@@ -48,7 +48,7 @@ function buildMovieCaption(movie, webAppUrl) {
     caption += `📖 <b>សេចក្តីសង្ខេប៖</b>\n${cleanOverview}\n\n`;
   }
 
-  caption += `✨ <i>ជាវ VIP ត្រឹមតែ $1/ខែ ទស្សនាបានគ្រប់រឿងដោយសេរី!</i>\n` +
+  caption += `✨ <i>ជាវ VIP ត្រឹមតែ $2.5/ខែ ទស្សនាបានគ្រប់រឿងដោយសេរី!</i>\n` +
     `━━━━━━━━━━━━━━━━━━━━`;
 
   return caption;
@@ -106,7 +106,7 @@ async function broadcastNewMovie(movie) {
   const userKeyboard = [
     [{ text: '🍿 បើកទស្សនារឿងនេះ (Watch Now)', web_app: { url: `${webAppUrl}/?movie=${movie.id}` } }],
     [
-      { text: '👑 ជាវ VIP ត្រឹមតែ $1/ខែ', web_app: { url: `${webAppUrl}/#profile` } },
+      { text: '👑 ជាវ VIP ត្រឹមតែ $2.5/ខែ', web_app: { url: `${webAppUrl}/#profile` } },
       { text: '📢 Channel ផ្លូវការ', url: 'https://t.me/Sdach_Roeung' }
     ]
   ];
@@ -114,7 +114,7 @@ async function broadcastNewMovie(movie) {
   const channelKeyboard = [
     [{ text: '🍿 បើកទស្សនារឿងនេះ (Watch Now)', url: `https://t.me/${botUsername}?startapp=movie_${movie.id}` }],
     [
-      { text: '👑 ជាវ VIP ត្រឹមតែ $1/ខែ', url: `https://t.me/${botUsername}?startapp=profile` },
+      { text: '👑 ជាវ VIP ត្រឹមតែ $2.5/ខែ', url: `https://t.me/${botUsername}?startapp=profile` },
       { text: '📢 Channel ផ្លូវការ', url: 'https://t.me/Sdach_Roeung' }
     ]
   ];
