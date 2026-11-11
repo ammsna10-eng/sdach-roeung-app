@@ -80,14 +80,6 @@
     {
       "id": 1794333871507,
       "name": "Horror story / រឿងភ័យរន្ធក់"
-    },
-    {
-      "id": 1794400499829,
-      "name": "បញ្ចូលសម្លេងមនុស្ស"
-    },
-    {
-      "id": 1794400511532,
-      "name": "បញ្ចូលសម្លេង Ai"
     }
   ],
   "countries": [
@@ -172,6 +164,86 @@
   ],
   "movies": [
     {
+      "id": 1794410778079,
+      "title_kh": "សង្គ្រាមបង្ក្រាប ហ្វូងខ្មោចឆៅបុរាណ",
+      "title_en": "The zombie",
+      "slug": "the-zombie",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9.5,
+      "poster_path": "https://hugh.cdn.rumble.cloud/video/fww1/3f/s8/1/G/J/i/d/GJidB.qR4e-small--..jpg",
+      "backdrop_path": "https://hugh.cdn.rumble.cloud/video/fww1/3f/s8/1/G/J/i/d/GJidB.qR4e-small--..jpg",
+      "trailer_url": "",
+      "video_url": "https://rumble.com/hls-vod/SqwMdEuWBak/playlist.m3u8?key=y1UDO3E6C1kZZS2oIxPMvRPZGEbPdNEpd8_Ra8cDsFqVDO6WpuCQi4NQJbJ4l6XM&u=0&b=0",
+      "overview": "",
+      "language_type": "sub",
+      "release_year": 2026,
+      "runtime_minutes": "",
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": false,
+      "country_id": 1,
+      "genres": [
+        {
+          "id": 1,
+          "name": "Action / វាយប្រហារ"
+        },
+        {
+          "id": 2,
+          "name": "Comedy / កំប្លែង"
+        },
+        {
+          "id": 4,
+          "name": "Mystery / អាថ៌កំបាំង"
+        }
+      ],
+      "comments": [],
+      "is_send_to_channel": true
+    },
+    {
+      "id": 1794410522908,
+      "title_kh": "គ្រូអាគមជើងខ្លាំង បង្ក្រាបបិសាចវិមានអាថ៌កំបាំង",
+      "title_en": "HUCKSTER",
+      "slug": "huckster",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9,
+      "poster_path": "https://hugh.cdn.rumble.cloud/video/fwe2/06/s8/1/q/L/k/d/qLkdB.qR4e-small--HUCKSTER..jpg",
+      "backdrop_path": "https://hugh.cdn.rumble.cloud/video/fwe2/06/s8/1/q/L/k/d/qLkdB.qR4e-small--HUCKSTER..jpg",
+      "trailer_url": "",
+      "video_url": "https://rumble.com/hls-vod/IpcRkCnq4CM/playlist.m3u8?key=2-9t5l25EP4d2pmympKqzg2Qi9PHeWNM2CgjtwfcoZAZVTQz9BbLLKbUIdBXxUXr&u=0&b=0",
+      "overview": "",
+      "language_type": "sub",
+      "release_year": 2026,
+      "runtime_minutes": "",
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": false,
+      "country_id": 1,
+      "genres": [
+        {
+          "id": 2,
+          "name": "Comedy / កំប្លែង"
+        },
+        {
+          "id": 4,
+          "name": "Mystery / អាថ៌កំបាំង"
+        },
+        {
+          "id": 1,
+          "name": "Action / វាយប្រហារ"
+        }
+      ],
+      "comments": [],
+      "is_send_to_channel": true
+    },
+    {
       "id": 1794400322734,
       "title_kh": "អាថ៌កំបាំងផ្នូរបុរាណ នៃមេទ័ពខ្មោចឆៅ 2",
       "title_en": "Zombie General 2",
@@ -185,14 +257,14 @@
       "trailer_url": "",
       "video_url": "https://rumble.com/hls-vod/Nvanexo_9Hs/playlist.m3u8?key=lFenqxVmMCquWwnlhp0-UZuJzBPvZjUa2k5v_yVbSuuUV_txtxB8HVIPqU3V0eyP&u=0&b=0",
       "overview": "",
-      "language_type": "dub",
+      "language_type": "sub",
       "release_year": 2026,
       "runtime_minutes": "",
       "status": "published",
       "is_slider": true,
       "is_popular": true,
       "is_latest": true,
-      "is_dubbed": true,
+      "is_dubbed": false,
       "country_id": 1,
       "genres": [
         {
@@ -259,14 +331,14 @@
       "trailer_url": "",
       "video_url": "https://hugh.cdn.rumble.cloud/video/fwe2/10/s8/2/I/x/f/d/IxfdB.caa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=683800576-683852757",
       "overview": "",
-      "language_type": "dub",
+      "language_type": "sub",
       "release_year": 2026,
       "runtime_minutes": "",
       "status": "published",
       "is_slider": true,
       "is_popular": true,
       "is_latest": true,
-      "is_dubbed": true,
+      "is_dubbed": false,
       "country_id": 1,
       "genres": [
         {

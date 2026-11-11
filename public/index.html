@@ -610,7 +610,8 @@
 
     <!-- 📺 FULLSCREEN VIDEO PLAYER MODAL -->
     <div v-if="isPlayerOpen" class="fixed inset-0 z-50 bg-black flex flex-col justify-center items-center">
-      <div class="relative w-full max-w-4xl aspect-video bg-black flex items-center justify-center overflow-hidden">
+      <!-- Normal portrait player wrapper -->
+      <div id="sdach-player-wrapper" class="relative w-full max-w-4xl aspect-video bg-black flex items-center justify-center overflow-hidden">
         <!-- Video element configured for iOS Safari & WebKit inline playback -->
         <video 
           id="sdach-video-player" 
@@ -642,39 +643,70 @@
           </div>
         </div>
 
-        <!-- Close Player Button -->
-        <button @click="closePlayer" class="absolute top-4 right-4 z-30 px-3.5 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95">
-          ✕ បិទវីដេអូ
-        </button>
+        <!-- Top Controls: Close + Fullscreen buttons -->
+        <div class="absolute top-3 right-3 z-30 flex items-center gap-2">
+          <!-- Fullscreen / Landscape Toggle Button -->
+          <button @click="toggleFullscreen" 
+            class="px-3 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95 flex items-center gap-1.5">
+            <span v-if="!isFullscreenLandscape">⛶ ពេញអេក្រង់</span>
+            <span v-else>⤡ បង្រួម</span>
+          </button>
+          <!-- Close Button -->
+          <button @click="closePlayer" class="px-3.5 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 active:scale-95">
+            ✕ បិទ
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- 💳 TOPUP / VIP QR MODAL -->
+    <!-- 🔄 CSS Landscape Fullscreen Overlay (injected via JS toggleFullscreen) -->
+    <style id="sdach-landscape-style"></style>
+
+    <!-- 💳 TOPUP / VIP DYNAMIC KHQR MODAL -->
     <div v-if="isQrModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
       <div class="relative w-full max-w-sm rounded-3xl bg-[#120a21] border border-amber-500/30 p-6 text-center space-y-4 shadow-2xl">
-        <button @click="isQrModalOpen = false" class="absolute top-4 right-4 text-slate-400 hover:text-white text-sm font-bold">✕</button>
+        <button @click="isQrModalOpen = false; clearPaymentPolling()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-sm font-bold">✕</button>
         <h3 class="text-lg font-bold text-white">{{ qrModalData.title }}</h3>
-        
-        <div class="w-56 h-56 mx-auto rounded-2xl bg-white p-2.5 shadow-xl flex items-center justify-center">
-          <img :src="qrModalData.qr" alt="KHQR" class="w-full h-full object-contain">
+
+        <!-- Loading QR State -->
+        <div v-if="qrModalData.loading" class="w-56 h-56 mx-auto rounded-2xl bg-white/5 border border-amber-500/20 flex flex-col items-center justify-center gap-3">
+          <div class="w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-amber-300 text-xs font-bold">កំពុងបង្កើត KHQR...</span>
         </div>
 
+        <!-- Dynamic KHQR Code -->
+        <div v-else-if="qrModalData.qr_image" class="w-56 h-56 mx-auto rounded-2xl bg-white p-2.5 shadow-xl flex items-center justify-center">
+          <img :src="qrModalData.qr_image" alt="KHQR" class="w-full h-full object-contain">
+        </div>
+
+        <!-- Amount Display -->
         <div class="text-sm font-mono text-amber-300 font-bold">
           ចំនួនទឹកប្រាក់៖ ${{ (qrModalData.amount || 0).toFixed(2) }}
         </div>
 
-        <!-- Action: Save QR Image Button for Mobile Users -->
-        <button @click="downloadQR(qrModalData.qr, 'KHQR_' + qrModalData.amount + 'USD.png')" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
-          <span>📥 រក្សាទុករូបភាព QR ក្នុងទូរស័ព្ទ</span>
-        </button>
+        <!-- Payment Status -->
+        <div v-if="qrModalData.paymentStatus === 'checking'" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30">
+          <div class="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-blue-300 text-xs font-bold">កំពុងផ្ទៀងផ្ទាត់ការទូទាត់...</span>
+        </div>
+        <div v-else-if="qrModalData.paymentStatus === 'success'" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+          <span class="text-emerald-400 text-xs font-bold">✅ ការទូទាត់ជោគជ័យ!</span>
+        </div>
+        <div v-else-if="qrModalData.paymentStatus === 'failed'" class="flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl bg-red-500/10 border border-red-500/30">
+          <span class="text-red-400 text-xs font-bold">❌ {{ qrModalData.paymentError || 'ការទូទាត់មានបញ្ហា!' }}</span>
+          <span class="text-slate-400 text-[10px]">សូមទាក់ទង Admin ប្រសិនបើលុយបានដកចេញ</span>
+        </div>
 
+        <!-- Instructions -->
         <p class="text-[11px] text-slate-400 leading-relaxed">
-          💡 សម្រាប់ទូរស័ព្ទដៃ៖ ចុច «រក្សាទុក QR» រួចចូល App ABA/Bakong ចុចស្កេន ដោយជ្រើសរើសរូបភាពពី Gallery ជាការស្រេច!
+          💡 ស្កេន QR ដោយប្រើ App <strong class="text-amber-300">ABA / Bakong / Wing</strong> ឬ App ធនាគារណាមួយ។ ប្រព័ន្ធនឹង Auto-Activate ភ្លាមៗ!
         </p>
 
-        <button @click="isQrModalOpen = false; showNotify('សំណើបានផ្ញើទៅ Admin រួចរាល់!', 'success')" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-xs shadow-lg active:scale-95">
-          ខ្ញុំបានបង់ប្រាក់រួចរាល់
-        </button>
+        <!-- Contact Admin if issue -->
+        <a :href="'https://t.me/' + (adminTelegramLink || 'AmmSnA').replace('https://t.me/','')" target="_blank"
+          class="block w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-bold text-xs active:scale-95 transition-all">
+          📞 ទូទាត់ហើយ ប៉ុន្តែមិនទទួលបាន? ទាក់ទង Admin
+        </a>
       </div>
     </div>
 

@@ -275,6 +275,62 @@ const app = createApp({
       }
     };
 
+    const isFullscreenLandscape = ref(false);
+
+    const toggleFullscreen = () => {
+      const wrapper = document.getElementById('sdach-player-wrapper');
+      const styleEl = document.getElementById('sdach-landscape-style');
+      const video = document.getElementById('sdach-video-player');
+      if (!wrapper || !styleEl) return;
+
+      if (!isFullscreenLandscape.value) {
+        // === Enter Landscape Fullscreen ===
+        isFullscreenLandscape.value = true;
+        // Try native fullscreen + orientation lock first (Android Chrome)
+        if (video && video.requestFullscreen) {
+          video.requestFullscreen().then(() => {
+            if (screen.orientation && screen.orientation.lock) {
+              screen.orientation.lock('landscape').catch(() => {});
+            }
+          }).catch(() => {});
+        } else if (video && video.webkitEnterFullscreen) {
+          // iOS Safari native fullscreen
+          video.webkitEnterFullscreen();
+        }
+        // CSS Force Rotate Fallback (works even if native fullscreen blocked by Telegram WebView)
+        styleEl.textContent = `
+          #sdach-player-wrapper {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100vh !important;
+            height: 100vw !important;
+            max-width: none !important;
+            transform: rotate(90deg) !important;
+            transform-origin: top left !important;
+            margin-top: 100vw !important;
+            z-index: 9999 !important;
+            background: #000 !important;
+            aspect-ratio: unset !important;
+          }
+          #sdach-player-wrapper video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+          }
+        `;
+      } else {
+        // === Exit Landscape Fullscreen ===
+        isFullscreenLandscape.value = false;
+        styleEl.textContent = '';
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      }
+    };
+
     const playTrailer = (movie) => {
       if (movie && movie.trailer_url && movie.trailer_url.trim()) {
         playMovie(movie, null, movie.trailer_url.trim());
@@ -412,46 +468,97 @@ const app = createApp({
       }
     };
 
-    const openTopup = (pkg) => {
-      qrModalData.value = {
-        title: pkg.title,
-        amount: pkg.price,
-        getAmount: pkg.balance_amount,
-        qr: pkg.qr_image || '/storage/logo/logo.png',
-        isVip: false
-      };
-      isQrModalOpen.value = true;
+    let paymentPollingInterval = null;
+
+    const clearPaymentPolling = () => {
+      if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+        paymentPollingInterval = null;
+      }
     };
 
-        const downloadQR = (url, filename) => {
-      let tg = window.Telegram?.WebApp;
-      let fullUrl = url.startsWith("http") ? url : window.location.origin + url;
-      if (tg && typeof tg.downloadFile === "function") {
-        tg.downloadFile({ url: fullUrl, file_name: filename }, (ok) => {
-          if (!ok && tg.openLink) tg.openLink(fullUrl);
+    const generateBakongQR = async (amount, type, targetId = null) => {
+      // Show loading state
+      qrModalData.value = { ...qrModalData.value, loading: true, qr_image: null, paymentStatus: null };
+      isQrModalOpen.value = true;
+      try {
+        const res = await axios.post('/api/payment/bakong/create-qr', {
+          amount: amount,
+          type: type,
+          target_id: targetId
         });
-        showNotify("បានទាញយករូបភាព QR រួចរាល់! 📥", "success");
-        return;
+        if (res.data && res.data.success) {
+          qrModalData.value = {
+            ...qrModalData.value,
+            loading: false,
+            qr_image: res.data.qr_image,
+            tran_id: res.data.tran_id,
+            amount: amount,
+            paymentStatus: 'checking'
+          };
+          // Start polling for payment confirmation every 4 seconds
+          clearPaymentPolling();
+          paymentPollingInterval = setInterval(async () => {
+            try {
+              const checkRes = await axios.get('/api/payment/bakong/check-status?tran_id=' + res.data.tran_id);
+              if (checkRes.data.status === 'completed') {
+                clearPaymentPolling();
+                qrModalData.value.paymentStatus = 'success';
+                // Refresh user data (wallet/VIP)
+                try {
+                  const meRes = await axios.get('/api/me');
+                  if (meRes.data && meRes.data.user) {
+                    user.value = {
+                      ...user.value,
+                      ...meRes.data.user,
+                      wallet_balance: parseFloat(meRes.data.user.wallet_balance || 0),
+                      is_vip: Boolean(meRes.data.user.is_vip),
+                      vip_expires_at: meRes.data.user.vip_expires_at || null
+                    };
+                  }
+                } catch(e) {}
+                showNotify('✅ ការទូទាត់ជោគជ័យ! គណនីបានធ្វើបច្ចុប្បន្នភាពហើយ!', 'success');
+                setTimeout(() => { isQrModalOpen.value = false; }, 3000);
+              } else if (checkRes.data.status === 'failed') {
+                clearPaymentPolling();
+                qrModalData.value.paymentStatus = 'failed';
+                qrModalData.value.paymentError = 'ការទូទាត់បរាជ័យ ឬទឹកប្រាក់មិនត្រឹមត្រូវ!';
+              }
+            } catch(e) {}
+          }, 4000);
+        } else {
+          qrModalData.value.loading = false;
+          qrModalData.value.paymentStatus = 'failed';
+          qrModalData.value.paymentError = res.data.message || 'មិនអាចបង្កើត QR បានទេ!';
+        }
+      } catch(err) {
+        qrModalData.value.loading = false;
+        qrModalData.value.paymentStatus = 'failed';
+        qrModalData.value.paymentError = 'មានបញ្ហាក្នុងការភ្ជាប់ Server!';
       }
-      const a = document.createElement("a");
-      a.href = fullUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      showNotify("បានទាញយករូបភាព QR រួចរាល់! 📥", "success");
+    };
+
+    const openTopup = (pkg) => {
+      qrModalData.value = {
+        title: pkg.title || 'បញ្ចូលប្រាក់',
+        amount: pkg.price,
+        loading: true,
+        paymentStatus: null
+      };
+      generateBakongQR(pkg.price, 'topup');
     };
 
     const openVip = (plan) => {
       qrModalData.value = {
-        title: plan.title,
+        title: plan.title || 'ជាវ VIP',
         amount: plan.price,
         days: plan.duration_days,
-        qr: plan.qr_image || '/storage/logo/logo.png',
-        isVip: true
+        loading: true,
+        paymentStatus: null
       };
-      isQrModalOpen.value = true;
+      generateBakongQR(plan.price, 'vip');
     };
+
 
     const nextSlide = () => {
       if (sliderMovies.value.length > 0) {
@@ -519,8 +626,9 @@ const app = createApp({
       selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, isVideoBlocked, videoErrorMessage, currentEpisode, movieSeasons,
       isPurchased, isBuying, purchasedMovies, continueWatching, formatDuration, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
       adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
-      openTopup, openVip, downloadQR, nextSlide, prevSlide, onTouchStart, onTouchEnd,
-      formatVipExpire, getVipRemainingDays
+      openTopup, openVip, nextSlide, prevSlide, onTouchStart, onTouchEnd,
+      formatVipExpire, getVipRemainingDays,
+      isFullscreenLandscape, toggleFullscreen, clearPaymentPolling
     };
   }
 });

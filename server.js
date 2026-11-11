@@ -37,6 +37,7 @@ app.use('/api', require('./routes/client_movies'));
 app.use('/api', require('./routes/client_comments'));
 
 app.use('/api', require('./routes/aba_payment'));
+app.use('/api', require('./routes/bakong_payment'));
 
 // Secure Database Export / Pre-flight Sync API
 app.get('/api/export-db', (req, res) => {
