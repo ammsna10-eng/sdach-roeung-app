@@ -1,0 +1,12 @@
+# 🛡️ MANDATORY PRE-FLIGHT DATABASE SYNC RULES
+
+## RULE 1: PULL LIVE DATABASE BEFORE EDITING CODE
+- ALWAYS execute `npm run pull-db` (or `node scripts/sync_db.js`) at the beginning of any session BEFORE making any changes to files, adding features, or making commits.
+- This pulls the latest live data (newly uploaded movies, user registrations, balance updates, settings, comments) from the production server (`https://sdach-roeung-app.onrender.com`) into local `data/db.json`.
+
+## RULE 2: NEVER OVERWRITE DATA WITH STALE DATA
+- NEVER restore or overwrite `data/db.json` with an older version or sample movies.
+- Always check that `data/db.json` has all active movies before committing.
+
+## RULE 3: COMMIT DB WITH EVERY DEPLOYMENT
+- Whenever making code changes and pushing to Git, ALWAYS stage and commit `data/db.json` so that any movies added by the admin on the live server are permanently backed up in Git history and will never be lost on Render rebuilds.

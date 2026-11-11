@@ -107,4 +107,20 @@ router.delete('/data/comments/:id', (req, res) => {
   res.json({ message: 'Comment deleted' });
 });
 
+// Database Export / Pre-flight Sync API
+router.get(['/export-db', '/data/export-db'], (req, res) => {
+  const secret = req.query.secret || req.headers['x-sync-secret'];
+  const expectedSecret = process.env.SYNC_SECRET || 'sdach_db_sync_secret_2026_x9k2';
+
+  const isAdmin = req.session && req.session.admin;
+  if (!isAdmin && secret !== expectedSecret) {
+    return res.status(403).json({ error: 'Unauthorized: Invalid sync secret' });
+  }
+
+  const db = readDB();
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="db_backup_${Date.now()}.json"`);
+  res.send(JSON.stringify(db, null, 2));
+});
+
 module.exports = router;
