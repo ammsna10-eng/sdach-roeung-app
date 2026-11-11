@@ -85,7 +85,7 @@ router.get('/me', (req, res) => {
 
   const purchases = (db.purchases || []).filter(p => String(p.user_id) === String(user.id));
   const purchasedMovies = purchases.filter(p => p.movie_id && !p.episode_id)
-    .map(p => db.movies.find(m => m.id === p.movie_id)).filter(Boolean);
+    .map(p => db.movies.find(m => String(m.id) === String(p.movie_id))).filter(Boolean);
   const purchasedEpisodes = purchases.filter(p => p.episode_id).map(p => ({ id: p.episode_id }));
 
   res.json({ user, purchased_movies: purchasedMovies, purchased_episodes: purchasedEpisodes });

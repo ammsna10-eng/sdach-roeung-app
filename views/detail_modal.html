@@ -15,7 +15,7 @@
               <span class="px-2 py-0.5 rounded bg-amber-500 text-black text-[10px] font-black uppercase">⭐ {{ selectedMovie.rating || '9.5' }}</span>
               <h3 class="text-lg sm:text-2xl font-black text-white mt-1 drop-shadow">{{ selectedMovie.title_kh }}</h3>
             </div>
-            <button @click="playMovie(selectedMovie)" class="px-4 py-2 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95">
+            <button @click="playTrailer(selectedMovie)" class="px-4 py-2 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95">
               <span>▶️ Trailer</span>
             </button>
           </div>

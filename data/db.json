@@ -22,7 +22,7 @@
       "first_name": "SnA",
       "last_name": "",
       "username": "AmmSnA",
-      "photo_url": null,
+      "photo_url": "https://t.me/i/userpic/320/ZiInAJ1FT1Aktaqch_ki8E7ThRrX6-UVUVjDo1Pf2kc.svg",
       "wallet_balance": 4,
       "is_vip": true,
       "vip_expires_at": "2027-11-10T12:59:56.921Z",
@@ -36,7 +36,7 @@
       "last_name": "Ju Ein",
       "username": "",
       "photo_url": "https://t.me/i/userpic/320/yYWoYvvSMZh2dC5DuC0FT4H81KLXoQO_OYnRR3DjWjbMomZK-cbpl1ic-crhHn6Z.svg",
-      "wallet_balance": 4,
+      "wallet_balance": 2.5,
       "is_vip": false,
       "vip_expires_at": null,
       "role": "user",
@@ -159,6 +159,45 @@
     }
   ],
   "movies": [
+    {
+      "id": 1794382902356,
+      "title_kh": "អាថ៌កំបាំងផ្នូរបុរាណ នៃមេទ័ពខ្មោចឆៅ",
+      "title_en": "Zombie general 1",
+      "slug": "zombie-general-1",
+      "type": "movie",
+      "access_type": "paid",
+      "price": 0.5,
+      "rating": 9.5,
+      "poster_path": "https://hugh.cdn.rumble.cloud/video/fwe2/10/s8/1/I/x/f/d/IxfdB.qR4e-small-01..jpg",
+      "backdrop_path": "https://hugh.cdn.rumble.cloud/video/fwe2/10/s8/1/I/x/f/d/IxfdB.qR4e-small-01..jpg",
+      "trailer_url": "",
+      "video_url": "https://hugh.cdn.rumble.cloud/video/fwe2/10/s8/2/I/x/f/d/IxfdB.caa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=683800576-683852757",
+      "overview": "",
+      "language_type": "dub",
+      "release_year": 2026,
+      "runtime_minutes": "",
+      "status": "published",
+      "is_slider": true,
+      "is_popular": true,
+      "is_latest": true,
+      "is_dubbed": true,
+      "country_id": 1,
+      "genres": [
+        {
+          "id": 2,
+          "name": "Comedy / កំប្លែង"
+        },
+        {
+          "id": 4,
+          "name": "Mystery / អាថ៌កំបាំង"
+        },
+        {
+          "id": 1794333871507,
+          "name": "Horror story / រឿងភ័យរន្ធក់"
+        }
+      ],
+      "comments": []
+    },
     {
       "id": 1794336244940,
       "title_kh": "មន្តអាគមគ្រូស្នេហ៍",
@@ -288,6 +327,20 @@
       "movie_id": 2,
       "amount": 0.5,
       "created_at": "2026-11-10T11:34:35.099Z"
+    },
+    {
+      "id": 1794373000001,
+      "user_id": 6629261370,
+      "movie_id": 1794336244940,
+      "amount": 0.5,
+      "created_at": "2026-11-11T05:00:00.000Z"
+    },
+    {
+      "id": 1794373000002,
+      "user_id": 6629261370,
+      "movie_id": 1794333734356,
+      "amount": 0.5,
+      "created_at": "2026-11-11T05:00:00.000Z"
     }
   ],
   "topups": [],

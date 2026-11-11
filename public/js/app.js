@@ -38,6 +38,8 @@ const app = createApp({
     const isDetailOpen = ref(false);
     const isPlayerOpen = ref(false);
     const activeStreamUrl = ref('');
+    const isVideoBlocked = ref(false);
+    const videoErrorMessage = ref('');
     const currentEpisode = ref(null);
     const movieSeasons = ref([]);
     const isPurchased = ref(false);
@@ -195,22 +197,103 @@ const app = createApp({
       isDetailOpen.value = true;
     };
 
-    const playMovie = (movie, ep = null) => {
+    const closePlayer = () => {
+      isPlayerOpen.value = false;
+      activeStreamUrl.value = '';
+      isVideoBlocked.value = false;
+      videoErrorMessage.value = '';
+      const v = document.getElementById('sdach-video-player');
+      if (v) {
+        try { v.pause(); v.src = ''; } catch (e) {}
+      }
+    };
+
+    const resumePlayback = () => {
+      const v = document.getElementById('sdach-video-player');
+      if (v) {
+        v.play().then(() => {
+          isVideoBlocked.value = false;
+        }).catch(err => {
+          console.warn('Playback resume failed:', err);
+        });
+      }
+    };
+
+    const onVideoError = (e) => {
+      console.error('Video error:', e);
+      const v = document.getElementById('sdach-video-player');
+      const errCode = v?.error?.code;
+      if (errCode === 4 || errCode === 2) {
+        videoErrorMessage.value = 'មិនអាចចាក់វីដេអូបានទេ (ប្រភពវីដេអូមានបញ្ហា ឬទម្រង់មិនគាំទ្រ)';
+      } else {
+        videoErrorMessage.value = 'មានបញ្ហាក្នុងការទាញយកវីដេអូ សូមព្យាយាមម្ដងទៀត';
+      }
+    };
+
+    const retryPlay = () => {
+      videoErrorMessage.value = '';
+      if (selectedMovie.value) {
+        playMovie(selectedMovie.value, currentEpisode.value);
+      }
+    };
+
+    const playTrailer = (movie) => {
+      if (movie && movie.trailer_url && movie.trailer_url.trim()) {
+        playMovie(movie, null, movie.trailer_url.trim());
+      } else {
+        showNotify('មិនទាន់មានវីដេអូ Trailer សម្រាប់រឿងនេះនៅឡើយទេ', 'info');
+      }
+    };
+
+    const playMovie = async (movie, ep = null, customUrl = null) => {
+      if (!movie) return;
       currentEpisode.value = ep;
-      let url = ep ? ep.video_url : movie.video_url;
-      if (!url) url = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+      videoErrorMessage.value = '';
+      isVideoBlocked.value = false;
+
+      let url = customUrl || (ep ? ep.video_url : movie.video_url);
+
+      // If video_url is missing on client, resolve it from stream endpoint
+      if (!url && movie.id) {
+        try {
+          const endpoint = ep ? `/api/stream/movies/${movie.id}?episode_id=${ep.id}` : `/api/stream/movies/${movie.id}`;
+          const sRes = await axios.get(endpoint);
+          if (sRes.data && sRes.data.stream_url) {
+            url = sRes.data.stream_url;
+            if (ep) ep.video_url = url;
+            else movie.video_url = url;
+            if (selectedMovie.value && String(selectedMovie.value.id) === String(movie.id)) {
+              selectedMovie.value.video_url = url;
+            }
+          }
+        } catch (err) {
+          if (err.response?.status === 403) {
+            showNotify('សូមទិញរឿង ឬជាវ VIP ជាមុនសិនដើម្បីទស្សនា!', 'error');
+            return;
+          }
+        }
+      }
+
+      if (!url) {
+        showNotify('មិនទាន់មានវីដេអូសម្រាប់រឿងនេះនៅឡើយទេ', 'error');
+        return;
+      }
+
       activeStreamUrl.value = url;
       isPlayerOpen.value = true;
+
       nextTick(() => {
         const v = document.getElementById('sdach-video-player');
         if (v) {
-          // Check if there is saved progress to auto resume
-          const hist = continueWatching.value.find(item => item.movie?.id === movie.id);
-          if (hist && hist.currentTime > 5 && hist.percent < 95) {
-            v.currentTime = hist.currentTime;
+          if (v.src !== url) {
+            v.src = url;
           }
 
-          // Track progress on timeupdate
+          const hist = continueWatching.value.find(item => String(item.movie?.id) === String(movie.id));
+          if (hist && hist.currentTime > 5 && hist.percent < 95) {
+            try { v.currentTime = hist.currentTime; } catch (e) {}
+          }
+
           let lastSave = 0;
           v.ontimeupdate = () => {
             const now = Date.now();
@@ -220,7 +303,6 @@ const app = createApp({
             }
           };
 
-          // Save on pause or ended
           v.onpause = () => {
             if (v.duration) saveWatchProgress(movie, v.currentTime, v.duration);
           };
@@ -228,7 +310,15 @@ const app = createApp({
             if (v.duration) saveWatchProgress(movie, v.duration, v.duration);
           };
 
-          v.play().catch(() => {});
+          const playPromise = v.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              isVideoBlocked.value = false;
+            }).catch(err => {
+              console.log('Autoplay deferred by browser policy:', err);
+              isVideoBlocked.value = true;
+            });
+          }
         }
       });
     };
@@ -243,10 +333,40 @@ const app = createApp({
         const res = await axios.post('/api/user/movies/' + movie.id + '/purchase');
         user.value.wallet_balance = parseFloat(res.data.new_balance);
         isPurchased.value = true;
-        if (!purchasedMovies.value.some(m => m.id === movie.id)) {
-          purchasedMovies.value.unshift(movie);
+
+        const unlockedMovie = res.data.movie || { ...movie, video_url: res.data.video_url };
+        if (res.data.video_url) {
+          unlockedMovie.video_url = res.data.video_url;
         }
+
+        // Update selectedMovie immediately with the unlocked movie object & video_url
+        selectedMovie.value = { ...selectedMovie.value, ...unlockedMovie };
+        if (unlockedMovie.seasons) {
+          movieSeasons.value = unlockedMovie.seasons;
+        }
+
+        // Synchronize in-memory movies lists so any subsequent clicks don't miss video_url
+        const syncList = (list) => {
+          if (!Array.isArray(list)) return;
+          const idx = list.findIndex(m => m && String(m.id) === String(movie.id));
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], ...unlockedMovie };
+          }
+        };
+        syncList(movies.value);
+        syncList(sliderMovies.value);
+        syncList(popularMovies.value);
+        syncList(dubbedMovies.value);
+        syncList(seriesMovies.value);
+
+        if (!purchasedMovies.value.some(m => String(m.id) === String(movie.id))) {
+          purchasedMovies.value.unshift(unlockedMovie);
+        }
+
         showNotify(res.data.message || 'បានទិញជោគជ័យ! សូមរីករាយទស្សនា', 'success');
+
+        // Immediately start playback without needing to clear app or reload
+        playMovie(selectedMovie.value);
       } catch (e) {
         showNotify(e.response?.data?.message || 'មានបញ្ហាក្នុងការទិញ', 'error');
       } finally {
@@ -311,9 +431,10 @@ const app = createApp({
     return {
       activeTab, user, movies, sliderMovies, popularMovies, dubbedMovies, seriesMovies,
       currentSlide, searchQuery, selectedGenre, selectedLanguage, genres, filteredMovies,
-      selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, currentEpisode, movieSeasons,
-      isPurchased, isBuying, purchasedMovies, continueWatching, formatDuration, purchasedMovies, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
-      adminTelegramLink, showNotify, openMovie, playMovie, buyMovie, openTopup, openVip, downloadQR, nextSlide, prevSlide, onTouchStart, onTouchEnd
+      selectedMovie, isDetailOpen, isPlayerOpen, activeStreamUrl, isVideoBlocked, videoErrorMessage, currentEpisode, movieSeasons,
+      isPurchased, isBuying, purchasedMovies, continueWatching, formatDuration, topupPackages, vipPlans, isQrModalOpen, qrModalData, notification,
+      adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
+      openTopup, openVip, downloadQR, nextSlide, prevSlide, onTouchStart, onTouchEnd
     };
   }
 });

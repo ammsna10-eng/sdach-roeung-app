@@ -48,29 +48,29 @@ router.get('/user/movies', (req, res) => {
 
 router.get('/user/movies/:id', (req, res) => {
   const db = readDB();
-  const movieId = parseInt(req.params.id);
-  const movie = (db.movies || []).find(m => m.id === movieId);
+  const movieId = req.params.id;
+  const movie = (db.movies || []).find(m => String(m.id) === String(movieId));
   if (!movie) return res.status(404).json({ message: 'Movie not found' });
 
   const user = getCurrentUser(req, db);
   const isVip = Boolean(user && user.is_vip);
   const purchases = (db.purchases || []).filter(p => String(p.user_id) === String(user?.id));
-  const hasPurchased = isVip || movie.access_type === 'free' || purchases.some(p => p.movie_id === movieId && !p.episode_id);
-  const purchasedEpisodes = purchases.filter(p => p.movie_id === movieId && p.episode_id).map(p => p.episode_id);
+  const hasPurchased = isVip || movie.access_type === 'free' || purchases.some(p => String(p.movie_id) === String(movieId) && !p.episode_id);
+  const purchasedEpisodes = purchases.filter(p => String(p.movie_id) === String(movieId) && p.episode_id).map(p => p.episode_id);
 
-  const rawSeasons = (db.seasons || []).filter(s => s.movie_id === movieId).map(s => ({
+  const rawSeasons = (db.seasons || []).filter(s => String(s.movie_id) === String(movieId)).map(s => ({
     ...s,
-    episodes: (db.episodes || []).filter(ep => ep.season_id === s.id)
+    episodes: (db.episodes || []).filter(ep => String(ep.season_id) === String(s.id))
   }));
 
-  const fallbackSeasons = [{ id: 1, season_number: 1, title: "រដូវកាលទី ១", episodes: (db.episodes || []).filter(ep => ep.movie_id === movieId) }];
+  const fallbackSeasons = [{ id: 1, season_number: 1, title: "រដូវកាលទី ១", episodes: (db.episodes || []).filter(ep => String(ep.movie_id) === String(movieId)) }];
   const targetSeasons = rawSeasons.length ? rawSeasons : fallbackSeasons;
 
   // Sanitize episodes: only reveal video_url if user purchased that episode or has full movie/vip
   const sanitizedSeasons = targetSeasons.map(s => ({
     ...s,
     episodes: (s.episodes || []).map(ep => {
-      const epUnlocked = hasPurchased || purchasedEpisodes.includes(ep.id);
+      const epUnlocked = hasPurchased || purchasedEpisodes.some(epid => String(epid) === String(ep.id));
       if (!epUnlocked) {
         const { video_url, ...safeEp } = ep;
         return safeEp;
@@ -98,8 +98,8 @@ router.get('/user/movies/:id', (req, res) => {
 
 router.post('/user/movies/:id/purchase', (req, res) => {
   const db = readDB();
-  const movieId = parseInt(req.params.id);
-  const movie = (db.movies || []).find(m => m.id === movieId);
+  const movieId = req.params.id;
+  const movie = (db.movies || []).find(m => String(m.id) === String(movieId));
   if (!movie) return res.status(404).json({ message: 'Movie not found' });
 
   const user = getCurrentUser(req, db);
@@ -112,16 +112,22 @@ router.post('/user/movies/:id/purchase', (req, res) => {
 
   user.wallet_balance = +(parseFloat(user.wallet_balance) - price).toFixed(2);
   db.purchases = db.purchases || [];
-  db.purchases.push({ id: Date.now(), user_id: user.id, movie_id: movieId, amount: price, created_at: new Date().toISOString() });
+  db.purchases.push({ id: Date.now(), user_id: user.id, movie_id: movie.id, amount: price, created_at: new Date().toISOString() });
   writeDB(db);
 
-  res.json({ new_balance: user.wallet_balance, message: 'ការទិញរឿងបានជោគជ័យ!' });
+  // Return the newly unlocked movie with video_url included so client can play immediately
+  res.json({
+    new_balance: user.wallet_balance,
+    message: 'ការទិញរឿងបានជោគជ័យ!',
+    movie: movie,
+    video_url: movie.video_url
+  });
 });
 
 router.post('/user/episodes/:id/purchase', (req, res) => {
   const db = readDB();
-  const epId = parseInt(req.params.id);
-  const episode = (db.episodes || []).find(ep => ep.id === epId);
+  const epId = req.params.id;
+  const episode = (db.episodes || []).find(ep => String(ep.id) === String(epId));
   if (!episode) return res.status(404).json({ message: 'Episode not found' });
 
   const user = getCurrentUser(req, db);
@@ -134,32 +140,37 @@ router.post('/user/episodes/:id/purchase', (req, res) => {
 
   user.wallet_balance = +(parseFloat(user.wallet_balance) - price).toFixed(2);
   db.purchases = db.purchases || [];
-  db.purchases.push({ id: Date.now(), user_id: user.id, movie_id: episode.movie_id, episode_id: epId, amount: price, created_at: new Date().toISOString() });
+  db.purchases.push({ id: Date.now(), user_id: user.id, movie_id: episode.movie_id, episode_id: episode.id, amount: price, created_at: new Date().toISOString() });
   writeDB(db);
 
-  res.json({ new_balance: user.wallet_balance, message: 'ការទិញភាគបានជោគជ័យ!' });
+  res.json({
+    new_balance: user.wallet_balance,
+    message: 'ការទិញភាគបានជោគជ័យ!',
+    episode: episode,
+    video_url: episode.video_url
+  });
 });
 
 router.get('/stream/movies/:id', (req, res) => {
   const db = readDB();
-  const movieId = parseInt(req.params.id);
-  const epId = req.query.episode_id ? parseInt(req.query.episode_id) : null;
-  const movie = (db.movies || []).find(m => m.id === movieId);
+  const movieId = req.params.id;
+  const epId = req.query.episode_id || null;
+  const movie = (db.movies || []).find(m => String(m.id) === String(movieId));
   if (!movie) return res.status(404).json({ message: 'Movie not found' });
 
   // STRICT SERVER VERIFICATION: User must be VIP or must have purchased this movie/episode
   const user = getCurrentUser(req, db);
   const isVip = Boolean(user && user.is_vip);
   const purchases = (db.purchases || []).filter(p => String(p.user_id) === String(user?.id));
-  const hasFullMovie = isVip || movie.access_type === 'free' || purchases.some(p => p.movie_id === movieId && !p.episode_id);
-  const hasEpisode = epId && (hasFullMovie || purchases.some(p => p.movie_id === movieId && p.episode_id === epId));
+  const hasFullMovie = isVip || movie.access_type === 'free' || purchases.some(p => String(p.movie_id) === String(movieId) && !p.episode_id);
+  const hasEpisode = epId && (hasFullMovie || purchases.some(p => String(p.movie_id) === String(movieId) && String(p.episode_id) === String(epId)));
 
   if (!hasFullMovie && (!epId || !hasEpisode)) {
     return res.status(403).json({ message: 'សូមទិញរឿង ឬជាវ VIP ជាមុនសិនដើម្បីទស្សនា!' });
   }
 
   if (epId) {
-    const ep = (db.episodes || []).find(e => e.id === epId);
+    const ep = (db.episodes || []).find(e => String(e.id) === String(epId));
     if (ep && ep.video_url) return res.json({ stream_url: ep.video_url });
   }
 
