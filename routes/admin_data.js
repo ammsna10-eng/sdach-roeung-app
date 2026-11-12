@@ -199,45 +199,163 @@ router.delete('/data/movies/:id', (req, res) => {
   res.json({ message: 'Movie deleted' });
 });
 
+function normalizeTopupStatus(st) {
+  const s = String(st || 'pending').toLowerCase();
+  if (['approved', 'completed', 'paid', 'success'].includes(s)) return 'approved';
+  if (['rejected', 'failed', 'expired', 'cancelled', 'canceled'].includes(s)) return 'rejected';
+  return 'pending';
+}
+
+function toCambodiaDate(iso) {
+  const d = new Date(iso || Date.now());
+  if (isNaN(d.getTime())) return '';
+  return new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 router.get('/data/topups', (req, res) => {
   const db = readDB();
-  const topups = (db.topups || []).map(t => ({
-    ...t,
-    user: (db.users || []).find(u => String(u.id) === String(t.user_id)) || { first_name: 'Unknown User' }
-  }));
-  const approved = topups.filter(t => t.status === 'approved');
-  const pending = topups.filter(t => t.status === 'pending');
-  const rejected = topups.filter(t => t.status === 'rejected');
-  const revenue = approved.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+  const seen = new Set();
+  const merged = [];
+
+  // 1. Collect from bakong_transactions (live KHQR TopUps)
+  for (const b of (db.bakong_transactions || [])) {
+    const key = String(b.tran_id || b.bill_no || b.id || '');
+    if (key) seen.add(key);
+    merged.push({
+      id: b.tran_id || b.bill_no || b.id,
+      tran_id: b.tran_id || b.bill_no || '',
+      user_id: b.user_id,
+      amount: parseFloat(b.payAmount ?? b.amount ?? 0) || 0,
+      received_amount: parseFloat(b.creditAmount ?? b.received_amount ?? b.amount ?? 0) || 0,
+      package_name: b.package_name || (b.type === 'vip' ? 'VIP Package' : 'TopUp KHQR'),
+      type: b.type || 'topup',
+      payment_screenshot: b.payment_screenshot || null,
+      status: normalizeTopupStatus(b.status),
+      created_at: b.created_at || new Date().toISOString()
+    });
+  }
+
+  // 2. Collect from manual db.topups if not already included
+  for (const t of (db.topups || [])) {
+    const key = String(t.tran_id || t.bill_no || t.id || '');
+    if (key && seen.has(key)) continue;
+    merged.push({
+      id: t.id,
+      tran_id: t.tran_id || String(t.id || ''),
+      user_id: t.user_id,
+      amount: parseFloat(t.amount ?? 0) || 0,
+      received_amount: parseFloat(t.received_amount ?? t.amount ?? 0) || 0,
+      package_name: t.package_name || 'Manual TopUp',
+      type: t.type || 'topup',
+      payment_screenshot: t.payment_screenshot || null,
+      status: normalizeTopupStatus(t.status),
+      created_at: t.created_at || new Date().toISOString()
+    });
+  }
+
+  // Attach user details
+  let list = merged.map(item => {
+    const user = (db.users || []).find(u => String(u.id) === String(item.user_id) || String(u.telegram_id) === String(item.user_id));
+    return {
+      ...item,
+      user: user ? {
+        id: user.id,
+        telegram_id: user.telegram_id || user.id,
+        first_name: user.first_name || 'អតិថិជន',
+        last_name: user.last_name || '',
+        username: user.username || '',
+        photo_url: user.photo_url || ''
+      } : {
+        id: item.user_id,
+        telegram_id: item.user_id || 'N/A',
+        first_name: 'អតិថិជន',
+        last_name: '',
+        username: '',
+        photo_url: ''
+      }
+    };
+  });
+
+  // Sort newest first
+  list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+  // Apply search & date filters first so KPI stats match filtered range
+  const q = String(req.query.search || '').trim().toLowerCase();
+  const statusFilter = String(req.query.status || 'all').trim().toLowerCase();
+  const fromDate = String(req.query.from_date || '').trim();
+  const toDate = String(req.query.to_date || '').trim();
+
+  if (q) {
+    list = list.filter(t =>
+      (t.user?.first_name || '').toLowerCase().includes(q) ||
+      (t.user?.last_name || '').toLowerCase().includes(q) ||
+      (t.user?.username || '').toLowerCase().includes(q) ||
+      String(t.user?.telegram_id || '').toLowerCase().includes(q) ||
+      String(t.tran_id || '').toLowerCase().includes(q) ||
+      (t.package_name || '').toLowerCase().includes(q)
+    );
+  }
+  if (fromDate) {
+    list = list.filter(t => {
+      const d = toCambodiaDate(t.created_at);
+      return d && d >= fromDate;
+    });
+  }
+  if (toDate) {
+    list = list.filter(t => {
+      const d = toCambodiaDate(t.created_at);
+      return d && d <= toDate;
+    });
+  }
+
+  const approved = list.filter(t => t.status === 'approved');
+  const pending = list.filter(t => t.status === 'pending');
+  const rejected = list.filter(t => t.status === 'rejected');
+  const revenue = approved.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+  const tableList = (statusFilter && statusFilter !== 'all')
+    ? list.filter(t => t.status === statusFilter)
+    : list;
 
   res.json({
-    topups: paginate(topups, req.query.page, 10),
+    topups: paginate(tableList, req.query.page, 10),
     stats: {
+      total_sales: revenue.toFixed(2),
+      topup_revenue: revenue.toFixed(2),
       pending_topups: pending.length,
       total_approved: approved.length,
       total_pending: pending.length,
-      total_rejected: rejected.length,
-      topup_revenue: revenue.toFixed(2)
+      total_rejected: rejected.length
     }
   });
 });
 
 router.put('/data/topups/:id', (req, res) => {
   const db = readDB();
-  const topup = (db.topups || []).find(t => t.id === parseInt(req.params.id));
-  if (!topup) return res.status(404).json({ message: 'Topup not found' });
+  const idParam = String(req.params.id);
+  const newStatus = normalizeTopupStatus(req.body.status);
 
-  topup.status = req.body.status;
-  if (req.body.status === 'approved') {
-    const user = (db.users || []).find(u => String(u.id) === String(topup.user_id));
+  let record = (db.topups || []).find(t => String(t.id) === idParam || String(t.tran_id) === idParam);
+  let isBakong = false;
+  if (!record) {
+    record = (db.bakong_transactions || []).find(b => String(b.tran_id) === idParam || String(b.bill_no) === idParam || String(b.id) === idParam);
+    isBakong = true;
+  }
+  if (!record) return res.status(404).json({ message: 'Topup not found' });
+
+  const prevStatus = normalizeTopupStatus(record.status);
+  record.status = isBakong && newStatus === 'approved' ? 'completed' : newStatus;
+
+  if (newStatus === 'approved' && prevStatus !== 'approved') {
+    const user = (db.users || []).find(u => String(u.id) === String(record.user_id) || String(u.telegram_id) === String(record.user_id));
     if (user) {
-      const added = parseFloat(topup.received_amount || topup.amount || 0);
+      const added = parseFloat(record.creditAmount ?? record.received_amount ?? record.amount ?? 0) || 0;
       user.wallet_balance = +(parseFloat(user.wallet_balance || 0) + added).toFixed(2);
     }
   }
 
   writeDB(db);
-  res.json({ message: 'Topup updated', topup });
+  res.json({ message: 'Topup updated', topup: record });
 });
 
 module.exports = router;
