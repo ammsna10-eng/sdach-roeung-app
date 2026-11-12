@@ -684,6 +684,7 @@ const app = createApp({
             loading: false,
             qr_image: res.data.qr_image,
             tran_id: res.data.tran_id,
+            qr_md5: res.data.qr_md5 || null,
             amount: amount,
             paymentStatus: 'checking'
           };
@@ -718,7 +719,7 @@ const app = createApp({
                 qrModalData.value.paymentError = 'ការទូទាត់បរាជ័យ ឬទឹកប្រាក់មិនត្រឹមត្រូវ!';
               }
             } catch(e) {}
-          }, 4000);
+          }, 3000);
         } else {
           qrModalData.value.loading = false;
           qrModalData.value.paymentStatus = 'failed';
@@ -733,11 +734,38 @@ const app = createApp({
 
     const iHavePaid = async () => {
       if (!qrModalData.value.tran_id) return;
+      showNotify('🔄 កំពុងផ្ទៀងផ្ទៀងជាមួយ Bakong API...', 'info');
       try {
-        await axios.post('/api/payment/bakong/i-have-paid', { tran_id: qrModalData.value.tran_id });
-        showNotify('📤 បានផ្ញើសំណើផ្ទៀងផ្ទាត់ទៅ Admin រួចរាល់! សូមរង់ចាំបន្តិច...', 'info');
+        const res = await axios.post('/api/payment/bakong/check-status', {
+          md5: qrModalData.value.qr_md5 || null,
+          billNo: qrModalData.value.tran_id
+        });
+        if (res.data.status === 'PAID' || res.data.status === 'completed') {
+          clearPaymentPolling();
+          qrModalData.value.paymentStatus = 'success';
+          try {
+            const meRes = await axios.get('/api/me');
+            if (meRes.data && meRes.data.user) {
+              user.value = {
+                ...user.value,
+                ...meRes.data.user,
+                wallet_balance: parseFloat(meRes.data.user.wallet_balance || 0),
+                is_vip: Boolean(meRes.data.user.is_vip),
+                vip_expires_at: meRes.data.user.vip_expires_at || null
+              };
+            }
+          } catch(e) {}
+          refreshHistory();
+          showNotify('✅ ការទូទាត់ជោគជ័យ! ទឹកប្រាក់ត្រូវបានបញ្ចូលភ្លាមៗ', 'success');
+          setTimeout(() => { isQrModalOpen.value = false; }, 3000);
+        } else if (res.data.debugReason === 'NOT_PAID_YET' || res.data.status === 'pending') {
+          showNotify('⏳ មិនទាន់ឃើញប្រតិបត្តិការនៅឡើយទេ សូមរង់ចាំ ៣ វិនាទី ឬចុចម្តងទៀត', 'info');
+        } else {
+          const reason = res.data.debugReason || 'BAKONG_API_ERROR';
+          showNotify('⚠️ Bakong API: ' + reason + ' — Render IP អាចត្រូវប្លុក ឬ Token ផុតសុពលភាព!', 'error');
+        }
       } catch (e) {
-        showNotify('មានបញ្ហាក្នុងការផ្ញើសំណើ!', 'error');
+        showNotify('⚠️ មិនអាចភ្ជាប់ Bakong API បានទេ!', 'error');
       }
     };
 

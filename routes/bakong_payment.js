@@ -23,6 +23,8 @@ const BAKONG_ACCOUNT_ID = process.env.BAKONG_ACCOUNT_ID || '002111782@abaa';
 const BAKONG_MERCHANT_NAME = process.env.BAKONG_MERCHANT_NAME || 'VEASNA CHAN';
 const BAKONG_MERCHANT_CITY = process.env.BAKONG_MERCHANT_CITY || 'Phnom Penh';
 const BAKONG_API_URL = 'https://api-bakong.nbc.gov.kh';
+// Optional Cambodia relay in case Render's foreign IP gets blocked by Bakong/Cloudflare
+const BAKONG_CHECK_URL = process.env.BAKONG_PROXY_URL || 'https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || process.env.TELEGRAM_ADMIN_ID || '';
 const SYNC_SECRET = process.env.SYNC_SECRET || '';
@@ -221,11 +223,10 @@ router.post('/payment/bakong/create-qr', async (req, res) => {
     });
     writeDB(db);
 
-    // 1-Tap Admin Approve fallback alert (fire-and-forget, never blocks QR creation)
-    const txRecord = { tran_id: tranId, bill_no: billNo, amount: parseFloat(amountVal), created_at: new Date().toISOString() };
-    notifyAdminPayment(txRecord, user).catch(() => {});
+    // 100% automatic verification: no admin alert — the Bakong Open API
+    // (check_transaction_by_md5) verifies payment during polling.
 
-    return res.json({ success: true, tran_id: tranId, amount: parseFloat(amountVal), qr_image: qrImageBase64 });
+    return res.json({ success: true, tran_id: tranId, amount: parseFloat(amountVal), qr_image: qrImageBase64, qr_md5: md5Hash });
   } catch (error) {
     console.error('Bakong QR Error:', error.message);
     res.status(500).json({ success: false, message: 'មានបញ្ហាក្នុងការបង្កើត KHQR' });
@@ -242,49 +243,71 @@ router.get('/payment/bakong/check-status', async (req, res) => {
   if (!tx) return res.status(404).json({ error: 'Transaction not found' });
   if (tx.status !== 'pending') return res.json({ tran_id: tx.tran_id, status: tx.status, amount: tx.amount });
 
+  const result = await verifyPaymentWithBakong(db, tx);
+  return res.json({ tran_id: tx.tran_id, amount: tx.amount, ...result });
+});
+
+/**
+ * Shared 100% automatic Bakong Open API verification (used by GET + POST check-status)
+ * Marks PAID only when responseCode === 0, currency is USD, and paid amount >= tx.amount
+ */
+async function verifyPaymentWithBakong(db, tx) {
   if (!BAKONG_TOKEN) {
     console.warn('[Bakong Check] BAKONG_TOKEN missing — cannot auto-verify, bill=' + tx.bill_no);
-    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason: 'MISSING_TOKEN' });
+    return { status: 'pending', debugReason: 'MISSING_TOKEN' };
   }
   if (!tx.qr_md5) {
     console.warn('[Bakong Check] tx.qr_md5 missing, bill=' + tx.bill_no);
-    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason: 'MISSING_MD5' });
+    return { status: 'pending', debugReason: 'MISSING_MD5' };
   }
 
   try {
-    const cr = await axios.post(`${BAKONG_API_URL}/v1/check_transaction_by_md5`,
+    const cr = await axios.post(BAKONG_CHECK_URL,
       { md5: tx.qr_md5 },
       { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 8000 }
     );
-    console.log(`[Bakong Check] HTTP ${cr.status} responseCode=${cr.data?.responseCode} description=${cr.data?.description || 'n/a'} bill=${tx.bill_no}`);
+    console.log(`[Bakong Check] HTTP ${cr.status} responseCode=${cr.data?.responseCode} message=${cr.data?.responseMessage || 'n/a'} bill=${tx.bill_no}`);
     if (cr.data?.responseCode === 0 && cr.data?.data) {
-      tx.status = 'completed'; tx.completed_at = new Date().toISOString();
-      const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
-      if (userObj) {
-        if (tx.type === 'topup') {
-          userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
-        } else if (tx.type === 'vip') {
-          userObj.is_vip = true;
-          const exp = new Date(); exp.setDate(exp.getDate() + 30);
-          userObj.vip_expires_at = exp.toISOString();
-        }
-        // Send Telegram confirmation
-        try {
-          const { broadcastToUser } = require('../services/telegram_notifier');
-          if (userObj.telegram_id) {
-            const msg = tx.type === 'vip'
-              ? `✅ ការទូទាត់ VIP ជោគជ័យ!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
-              : `✅ បញ្ចូលប្រាក់ជោគជ័យ!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែម!`;
-            await broadcastToUser(userObj.telegram_id, msg);
+      // Bakong returns an array (or object) of matching transactions — sum USD payments
+      const items = Array.isArray(cr.data.data) ? cr.data.data : [cr.data.data];
+      const usdTotal = items.reduce((sum, it) => {
+        const cur = String(it.currency ?? '').toUpperCase();
+        const isUSD = cur === 'USD' || cur === '840' || Number(it.currency) === 840;
+        return isUSD ? sum + (parseFloat(it.amount) || 0) : sum;
+      }, 0);
+      if (usdTotal + 0.001 >= tx.amount) {
+        tx.status = 'PAID'; tx.completed_at = new Date().toISOString(); tx.bakong_verified = true;
+        tx.paid_amount = usdTotal;
+        const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
+        if (userObj) {
+          if (tx.type === 'topup') {
+            userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
+          } else if (tx.type === 'vip') {
+            userObj.is_vip = true;
+            const exp = new Date(); exp.setDate(exp.getDate() + 30);
+            userObj.vip_expires_at = exp.toISOString();
           }
-        } catch(e) {}
+          // Send Telegram confirmation
+          try {
+            const { broadcastToUser } = require('../services/telegram_notifier');
+            if (userObj.telegram_id) {
+              const msg = tx.type === 'vip'
+                ? `✅ ការទូទាត់ VIP ជោគជ័យ!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
+                : `✅ បញ្ចូលប្រាក់ជោគជ័យ!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែម!`;
+              await broadcastToUser(userObj.telegram_id, msg);
+            }
+          } catch(e) {}
+        }
+        recordBakongTransaction(db, tx, userObj);
+        writeDB(db);
+        console.log(`[Bakong Check] ✅ AUTO-VERIFIED PAID bill=${tx.bill_no} paid=$${usdTotal} user=${tx.user_id}`);
+        return { status: 'PAID', amount: tx.amount, paid_amount: usdTotal };
       }
-      recordBakongTransaction(db, tx, userObj);
-      writeDB(db);
-      return res.json({ tran_id: tx.tran_id, status: 'completed', amount: tx.amount });
+      console.warn(`[Bakong Check] Amount mismatch: paid $${usdTotal} < required $${tx.amount} bill=${tx.bill_no}`);
+      return { status: 'pending', debugReason: 'AMOUNT_MISMATCH', paid_amount: usdTotal };
     }
     console.log(`[Bakong Check] Not paid yet (responseCode ${cr.data?.responseCode}) bill=${tx.bill_no}`);
-    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason: 'NOT_PAID_YET' });
+    return { status: 'pending', debugReason: 'NOT_PAID_YET' };
   } catch (e) {
     const httpStatus = e.response?.status || 'NO_RESPONSE';
     const body = typeof e.response?.data === 'object'
@@ -296,8 +319,26 @@ router.get('/payment/bakong/check-status', async (req, res) => {
     else if (httpStatus === 403) debugReason = 'HTTP_403_BLOCKED';
     else if (httpStatus === 429) debugReason = 'HTTP_429_RATE_LIMITED';
     else if (httpStatus === 'NO_RESPONSE') debugReason = 'NETWORK_ERROR';
-    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason });
+    return { status: 'pending', debugReason };
   }
+}
+
+/**
+ * POST /api/payment/bakong/check-status
+ * Same auto-verification, invoked by the "ខ្ញុំបានបង់ប្រាក់រួចហើយ" button with { md5, billNo }
+ */
+router.post('/payment/bakong/check-status', async (req, res) => {
+  const { md5, billNo } = req.body || {};
+  const db = readDB();
+  const tx = (db.bakong_transactions || []).find(t => t.bill_no === billNo || t.tran_id === billNo);
+  if (!tx) return res.status(404).json({ error: 'Transaction not found' });
+  if (md5 && tx.qr_md5 && md5 !== tx.qr_md5) {
+    console.warn(`[Bakong Check] md5 mismatch vs stored (bill=${tx.bill_no}) — using stored md5`);
+  }
+  if (tx.status !== 'pending') return res.json({ tran_id: tx.tran_id, status: tx.status, amount: tx.amount });
+
+  const result = await verifyPaymentWithBakong(db, tx);
+  return res.json({ tran_id: tx.tran_id, amount: tx.amount, ...result });
 });
 
 /**
