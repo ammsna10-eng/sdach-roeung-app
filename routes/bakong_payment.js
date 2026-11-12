@@ -446,9 +446,17 @@ router.post('/payment/bakong/verify-receipt', async (req, res) => {
 
     // ── Step 1: Local OCR extraction (shared Tesseract worker) + Manual Hash override ─
     let ocrHash = '', fullHash = '', bankTrxId = '', ftRef = '', ocrUSD = 0, ocrText = '', recipientMatch = false;
+    let receiptSha256 = '';
     if (receiptImageBase64) {
       const m = String(receiptImageBase64).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
       const imgBuffer = Buffer.from(m ? m[2] : String(receiptImageBase64), 'base64');
+      receiptSha256 = crypto.createHash('sha256').update(imgBuffer).digest('hex');
+      db.used_receipts = db.used_receipts || [];
+      const dupImg = db.used_receipts.some(r => r.imageSha256 === receiptSha256) ||
+        (db.bakong_transactions || []).some(t => t !== tx && ['PAID', 'completed'].includes(t.status) && t.imageSha256 === receiptSha256);
+      if (dupImg) {
+        return res.json({ ok: false, error: 'វិក្កយបត្រនេះត្រូវបានប្រើប្រាស់រួចហើយ (Duplicate Receipt)!' });
+      }
       try {
         const worker = await getOcrWorker();
         const { data: { text } } = await worker.recognize(imgBuffer);
@@ -536,11 +544,15 @@ router.post('/payment/bakong/verify-receipt', async (req, res) => {
           return isUSD ? sum + (parseFloat(it.amount) || 0) : sum;
         }, 0);
         if (usdPaid + 0.001 >= requiredPay) {
-          tx.bakongHash = cleanHash;
-          tx.bankTrxId = bankTrxId;
-          tx.paid_amount = usdPaid;
-          tx.ocr_text = ocrText.slice(0, 500);
-          const approved = await approvePaymentByBillNo(tx.bill_no);
+          tx.imageSha256 = receiptSha256;
+        tx.bakongHash = cleanHash;
+        tx.bankTrxId = bankTrxId;
+        tx.paid_amount = usdPaid;
+        tx.ocr_text = ocrText.slice(0, 500);
+        db.used_receipts = db.used_receipts || [];
+        db.used_receipts.push({ billNo: tx.bill_no, userId: tx.user_id, imageSha256: receiptSha256, bakongHash: cleanHash.toLowerCase(), bankTrxId: String(bankTrxId || ''), ftRef: '', amount: requiredPay, usedAt: new Date().toISOString() });
+        writeDB(db);
+        const approved = await approvePaymentByBillNo(tx.bill_no);
           if (approved.ok) {
             console.log(`[Verify Receipt] ✅ PAID via Bakong API (Path A) bill=${tx.bill_no} credited=$${approved.creditedAmount}`);
             return res.json({ ok: true, status: 'PAID', creditedAmount: approved.creditedAmount });
@@ -569,12 +581,24 @@ router.post('/payment/bakong/verify-receipt', async (req, res) => {
           }
         }
       }
-      tx.bankTrxId = bankTrxId;
-      tx.ftRef = ftRef;
-      tx.paid_amount = ocrUSD;
-      tx.recipient_verified = true;
-      tx.ocr_text = ocrText.slice(0, 500);
-      const approvedB = await approvePaymentByBillNo(tx.bill_no);
+      db.used_receipts = db.used_receipts || [];
+    const dupLedger = db.used_receipts.some(r =>
+      (receiptSha256 && r.imageSha256 === receiptSha256) ||
+      (bankTrxId && r.bankTrxId && String(r.bankTrxId).toLowerCase() === String(bankTrxId).toLowerCase()) ||
+      (ftRef && r.ftRef && String(r.ftRef).toLowerCase() === String(ftRef).toLowerCase())
+    );
+    if (dupLedger) {
+      return res.json({ ok: false, error: 'វិក្កយបត្រនេះត្រូវបានប្រើប្រាស់រួចហើយ (Duplicate Receipt)!' });
+    }
+    tx.imageSha256 = receiptSha256;
+    tx.bankTrxId = bankTrxId;
+    tx.ftRef = ftRef;
+    tx.paid_amount = ocrUSD;
+    tx.recipient_verified = true;
+    tx.ocr_text = ocrText.slice(0, 500);
+    db.used_receipts.push({ billNo: tx.bill_no, userId: tx.user_id, imageSha256: receiptSha256, bakongHash: '', bankTrxId: String(bankTrxId || ''), ftRef: String(ftRef || ''), amount: requiredPay, usedAt: new Date().toISOString() });
+    writeDB(db);
+    const approvedB = await approvePaymentByBillNo(tx.bill_no);
       if (approvedB.ok) {
         console.log(`[Verify Receipt] ✅ PAID via ABA receipt (Path B) bill=${tx.bill_no} trxId=${bankTrxId} ftRef=${ftRef} credited=$${approvedB.creditedAmount}`);
         return res.json({ ok: true, status: 'PAID', creditedAmount: approvedB.creditedAmount });
