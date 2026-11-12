@@ -54,17 +54,27 @@ function buildKHQRString(amount, billNo) {
   const expires = created + (15 * 60 * 1000);
   const tsSub = tlv('00', String(created)) + tlv('01', String(expires));
 
-  // Official ABA Bank Individual Account USD structure for Tag 29
+  // Tag 29 + top-level Tag 40: EXACT structure decoded from the official ABA QR card
+  // (Tag 29: merchant ID + KHR account as issued; Tag 40: ABA "abaP2P" Dual template
+  //  mapping KHR account 003802314 and USD account 002111782 — ABA apps resolve
+  //  the correct account from this template by the scanned currency)
   const bakongTag =
     tlv('00', 'abaakhppxxx@abaa') +
-    tlv('01', '002111782') +
+    tlv('01', '003802314') +
     tlv('02', 'ABA Bank');
+  const abaDualTemplate =
+    tlv('00', 'abaP2P') +
+    tlv('01', 'F1D8E17023ED') +
+    tlv('02', '003802314') +
+    tlv('03', '002111782') +
+    tlv('04', 'Dual');
 
   const body =
     tlv('00', '01') +                                        // Payload Format Indicator
     tlv('01', '12') +                                        // Point of Initiation: 12 = DYNAMIC (Tag 54 present)
-    tlv('29', bakongTag) +                                   // Merchant Account Info (ABA USD)
-    tlv('52', '5999') +                                      // MCC: NBC Bakong standard for individual accounts
+    tlv('29', bakongTag) +                                   // Merchant Account Info (EXACT ABA-issued structure)
+    tlv('40', abaDualTemplate) +                             // ABA abaP2P Dual template (EXACT ABA-issued structure)
+    tlv('52', '5999') +                                      // MCC: matches official ABA card
     tlv('53', '840') +                                       // Currency: USD only
     (amtStr ? tlv('54', amtStr) : '') +                      // Transaction Amount
     tlv('58', 'KH') +                                        // Country Code
