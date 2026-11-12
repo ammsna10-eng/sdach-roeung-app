@@ -80,11 +80,26 @@ bot.help((ctx) => {
   );
 });
 
-bot.launch().then(() => {
-  console.log('🤖 Telegram Bot is running successfully!');
-}).catch((err) => {
-  console.error('❌ Failed to launch Telegram Bot:', err.message);
-});
+// Resilient launch: during Render zero-downtime deploys, old and new containers
+// briefly overlap and Telegram throws 409 Conflict — retry instead of crashing.
+const launchBotWithRetry = async (attempt = 1) => {
+  // Clear any leftover webhook/polling state from the old instance
+  await bot.telegram.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+  try {
+    await bot.launch();
+    console.log('🤖 Telegram Bot is running successfully!');
+  } catch (err) {
+    if (err && /409/.test(err.message || '')) {
+      console.warn(`Telegram 409 conflict (waiting for old instance to stop), retrying in 5s... (attempt ${attempt})`);
+      setTimeout(() => launchBotWithRetry(attempt + 1), 5000);
+    } else {
+      console.error('❌ Failed to launch Telegram Bot:', err.message);
+      throw err;
+    }
+  }
+};
+
+launchBotWithRetry();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
