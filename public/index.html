@@ -841,27 +841,46 @@
           <span class="text-amber-300 text-xs font-bold">កំពុងបង្កើត KHQR...</span>
         </div>
 
-        <!-- Dynamic KHQR Code -->
+        <!-- Admin Package Fixed QR Image (exact uploaded QR) or Dynamic KHQR fallback -->
+        <div v-else-if="qrModalData.packageQrImage" class="w-56 h-56 mx-auto rounded-2xl bg-white p-2.5 shadow-xl flex items-center justify-center">
+          <img :src="qrModalData.packageQrImage" alt="KHQR" class="w-full h-full object-contain">
+        </div>
         <div v-else-if="qrModalData.qr_image" class="w-56 h-56 mx-auto rounded-2xl bg-white p-2.5 shadow-xl flex items-center justify-center">
           <img :src="qrModalData.qr_image" alt="KHQR" class="w-full h-full object-contain">
         </div>
 
-        <!-- Amount Display -->
+        <!-- Amount Display: តម្លៃត្រូវបង់ ($) + ទឹកប្រាក់ទទួលបាន ($) -->
         <div class="text-sm font-mono text-amber-300 font-bold">
-          ចំនួនទឹកប្រាក់៖ ${{ (qrModalData.amount || 0).toFixed(2) }}
+          តម្លៃត្រូវបង់៖ ${{ (qrModalData.payAmount || qrModalData.amount || 0).toFixed(2) }}
+        </div>
+        <div v-if="qrModalData.creditAmount != null && qrModalData.creditAmount !== (qrModalData.payAmount || qrModalData.amount)" class="text-xs font-mono text-emerald-400 font-bold">
+          ទឹកប្រាក់ទទួលបាន៖ ${{ qrModalData.creditAmount.toFixed(2) }}
         </div>
 
-        <!-- Payment Status -->
-        <div v-if="qrModalData.paymentStatus === 'checking'" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30">
+        <!-- Payment Status: verifying -->
+        <div v-if="qrModalData.paymentStatus === 'verifying'" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30">
           <div class="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-blue-300 text-xs font-bold">កំពុងផ្ទៀងផ្ទាត់ការទូទាត់...</span>
+          <span class="text-blue-300 text-xs font-bold">កំពុងផ្ទៀងផ្ទាត់វិក្កយបត្រជាមួយ Bakong API...</span>
         </div>
 
-        <!-- ✅ ខ្ញុំបានបង់ប្រាក់រួចហើយ: re-alerts Admin on Telegram for 1-Tap manual approve -->
-        <button v-if="qrModalData.paymentStatus === 'checking'" @click="iHavePaid"
-          class="w-full py-2.5 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
-          <span>✅ ខ្ញុំបានបង់ប្រាក់រួចហើយ (I Have Paid)</span>
-        </button>
+        <!-- 📎 Receipt upload + optional manual Hash + ✅ Confirm Payment (local OCR + Bakong API verification) -->
+        <div v-if="qrModalData.paymentStatus === 'awaiting_receipt' && (qrModalData.packageQrImage || qrModalData.qr_image)" class="w-full space-y-2">
+          <label class="block w-full py-2.5 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/40 text-sky-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow cursor-pointer">
+            <span>📎 ភ្ជាប់រូបភាពវិក្កយបត្រ (Screenshot)</span>
+            <input type="file" accept="image/*" class="hidden" @change="onReceiptFileChange">
+          </label>
+          <div v-if="qrModalData.receiptPreview" class="flex flex-col items-center gap-2">
+            <img :src="qrModalData.receiptPreview" alt="Receipt" class="max-h-40 rounded-xl border border-white/20 shadow-lg object-contain">
+            <span class="text-emerald-400 text-[10px] font-bold">✅ វិក្កយបត្រត្រូវបានភ្ជាប់រួចរាល់</span>
+          </div>
+          <input v-model="qrModalData.manualHash" type="text" maxlength="80"
+            placeholder="ឬវាយលេខកូដ Hash ៨ ខ្ទង់ (ឧ. a1b2c3d4)"
+            class="w-full py-2.5 px-3 rounded-xl bg-white/5 border border-slate-500/40 text-white text-xs font-mono text-center placeholder:text-slate-500 focus:outline-none focus:border-amber-400/60">
+          <button v-if="qrModalData.receiptPreview || (qrModalData.manualHash && qrModalData.manualHash.trim().length >= 8)" @click="verifyReceipt"
+            class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
+            <span>✅ បញ្ជាក់ការបង់ (Confirm Payment)</span>
+          </button>
+        </div>
         <div v-else-if="qrModalData.paymentStatus === 'success'" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
           <span class="text-emerald-400 text-xs font-bold">✅ ការទូទាត់ជោគជ័យ!</span>
         </div>
@@ -871,14 +890,14 @@
         </div>
 
         <!-- Download QR Button (for users with single phone) -->
-        <button v-if="qrModalData.qr_image && !qrModalData.loading" @click="downloadQR" 
+        <button v-if="(qrModalData.packageQrImage || qrModalData.qr_image) && !qrModalData.loading" @click="downloadQR" 
           class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
           <span>📥 រក្សាទុករូបភាព QR</span>
         </button>
 
         <!-- Instructions -->
         <p class="text-[11px] text-slate-400 leading-relaxed">
-          💡 ស្កេន QR ដោយប្រើ App <strong class="text-amber-300">ABA / Bakong / Wing</strong> ឬ App ធនាគារណាមួយ។ ប្រព័ន្ធនឹង Auto-Activate ភ្លាមៗ!
+          💡 ស្កេន QR ដោយប្រើ App <strong class="text-amber-300">ABA / Bakong / Wing</strong> ឬ App ធនាគារណាមួយ។ បន្ទាប់ពីបង់រួច សូមភ្ជាប់រូបភាពវិក្កយបត្រ រួចចុច "បញ្ជាក់ការបង់" ដើម្បីទទួលប្រាក់ភ្លាមៗ!
         </p>
 
         <!-- Contact Admin if issue -->
@@ -902,7 +921,7 @@
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   
   <!-- App Script -->
-  <script src="/js/app.js?v=auto_bakong_verify_v6"></script>
+  <script src="/js/app.js?v=local_ocr_bakong_v12"></script>
 </body>
 </html>
 

@@ -3,16 +3,21 @@ const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const Tesseract = require('tesseract.js');
 const { readDB, writeDB, getCurrentUser, recordTransaction } = require('../db');
 
 // Record a completed Bakong payment (topup or VIP) in the user's transaction history
+// Topups record the package's ទឹកប្រាក់ទទួលបាន ($): tx.creditAmount || tx.amount
 function recordBakongTransaction(db, tx, userObj) {
+  const credited = tx.type === 'vip'
+    ? -Math.abs(parseFloat(tx.amount) || 0)
+    : Math.abs(parseFloat(tx.creditAmount || tx.amount) || 0);
   recordTransaction(db, {
     userId: tx.user_id,
     telegramId: userObj?.telegram_id || tx.user_id,
     type: tx.type === 'vip' ? 'VIP_PURCHASE' : 'TOPUP',
     title: tx.type === 'vip' ? 'ទិញកញ្ចប់ VIP ប្រចាំខែ' : 'បញ្ចូលទឹកប្រាក់ KHQR',
-    amount: tx.type === 'vip' ? -Math.abs(parseFloat(tx.amount) || 0) : Math.abs(parseFloat(tx.amount) || 0),
+    amount: credited,
     status: 'PAID',
     billNo: tx.bill_no || tx.tran_id
   });
@@ -25,6 +30,7 @@ const BAKONG_MERCHANT_CITY = process.env.BAKONG_MERCHANT_CITY || 'Phnom Penh';
 const BAKONG_API_URL = 'https://api-bakong.nbc.gov.kh';
 // Optional Cambodia relay in case Render's foreign IP gets blocked by Bakong/Cloudflare
 const BAKONG_CHECK_URL = process.env.BAKONG_PROXY_URL || 'https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5';
+const BAKONG_API_BASE = process.env.BAKONG_API_BASE || 'https://api-bakong.nbc.gov.kh/v1';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || process.env.TELEGRAM_ADMIN_ID || '';
 const SYNC_SECRET = process.env.SYNC_SECRET || '';
@@ -44,6 +50,28 @@ async function sendTelegram(chatId, text, replyMarkup) {
   } catch (err) {
     console.error('[Bakong] Telegram send failed:', err.response?.data?.description || err.message);
     return { ok: false, error: err.response?.data?.description || err.message };
+  }
+}
+
+// Send a receipt photo + caption + inline keyboard to the Admin on Telegram (emergency fallback)
+async function sendReceiptToAdmin(imgBuffer, filename, caption, replyMarkup) {
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return { ok: false, error: 'BOT_TOKEN/ADMIN_CHAT_ID missing' };
+  try {
+    const fd = new FormData();
+    fd.append('chat_id', String(ADMIN_CHAT_ID));
+    fd.append('caption', caption);
+    fd.append('photo', new Blob([imgBuffer]), filename);
+    if (replyMarkup) fd.append('reply_markup', JSON.stringify(replyMarkup));
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      console.error('[Bakong] Telegram sendPhoto failed:', r.status, body.slice(0, 200));
+      return { ok: false, error: `HTTP ${r.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('[Bakong] Telegram sendPhoto failed:', err.message);
+    return { ok: false, error: err.message };
   }
 }
 
@@ -78,6 +106,7 @@ async function approvePaymentByBillNo(billNo) {
   tx.status = 'PAID';
   tx.completed_at = new Date().toISOString();
   tx.approved_by = 'telegram_admin';
+  const credited = tx.type === 'vip' ? tx.amount : (tx.creditAmount || tx.amount);
   const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
   if (userObj) {
     if (tx.type === 'vip') {
@@ -85,22 +114,22 @@ async function approvePaymentByBillNo(billNo) {
       const exp = new Date(); exp.setDate(exp.getDate() + 30);
       userObj.vip_expires_at = exp.toISOString();
     } else {
-      userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
+      userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + credited);
     }
     try {
       const { broadcastToUser } = require('../services/telegram_notifier');
       if (userObj.telegram_id) {
         const msg = tx.type === 'vip'
           ? `✅ ការទូទាត់ VIP បានអនុម័តរួចរាល់!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
-          : `✅ បញ្ចូលប្រាក់ជោគជ័យ (បានអនុម័តដោយ Admin)!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែមទៅគណនីរបស់អ្នក!`;
+          : `✅ បញ្ចូលប្រាក់ជោគជ័យ (បានអនុម័តដោយ Admin)!\n💰 $${credited.toFixed(2)} ត្រូវបានបន្ថែមទៅគណនីរបស់អ្នក!`;
         await broadcastToUser(userObj.telegram_id, msg);
       }
     } catch (e) {}
   }
   recordBakongTransaction(db, tx, userObj);
   writeDB(db);
-  console.log(`[Bakong] ✅ Approved by Admin 1-Tap: bill=${tx.bill_no} amount=$${tx.amount} user=${tx.user_id}`);
-  return { ok: true, status: 'PAID', amount: tx.amount, user_id: tx.user_id };
+  console.log(`[Bakong] ✅ Approved by Admin 1-Tap: bill=${tx.bill_no} amount=$${tx.amount} credited=$${credited} user=${tx.user_id}`);
+  return { ok: true, status: 'PAID', amount: tx.amount, creditedAmount: credited, user_id: tx.user_id };
 }
 
 // CRC16 CCITT for KHQR EMV spec
@@ -186,29 +215,55 @@ router.post('/payment/bakong/create-qr', async (req, res) => {
     const db = readDB();
     const user = getCurrentUser(req, db) || { id: 0, first_name: 'Guest' };
     const { amount, type, target_id } = req.body;
-    const amountVal = parseFloat(amount || 1.0).toFixed(2);
+    const packageId = req.body.packageId ?? req.body.package_id ?? null;
     const tranId = `TRX${Date.now()}${String(user.id).slice(-4)}`;
     const billNo = tranId.slice(0, 25);
     let qrString = null;
+    let packageQrImage = null;
 
-    if (BAKONG_TOKEN) {
-      try {
-        const r = await axios.post(`${BAKONG_API_URL}/v1/generate_qr`, {
-          currency: 'USD', amount: parseFloat(amountVal),
-          merchantName: BAKONG_MERCHANT_NAME, merchantCity: BAKONG_MERCHANT_CITY,
-          merchantId: BAKONG_ACCOUNT_ID, billNumber: billNo,
-          storeLabel: 'ស្ដេចរឿង'
-        }, { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 8000 });
-        if (r.data?.data?.qr) qrString = r.data.data.qr;
-      } catch (e) { console.log('[Bakong] Fallback to manual KHQR'); }
+    // Admin-uploaded Top-Up Package (topup_packages) or VIP plan (vip_plans):
+    // payAmount = តម្លៃត្រូវបង់ ($), creditAmount = ទឹកប្រាក់ទទួលបាន ($) credited to wallet
+    let pkg = null;
+    const pkgId = parseInt(packageId) || parseInt(target_id);
+    if (type === 'vip') {
+      pkg = (db.vip_plans || []).find(p => p.id === pkgId && p.is_active) || null;
     }
-    if (!qrString) qrString = buildKHQRString(amountVal, billNo);
+    if (!pkg && pkgId) {
+      pkg = (db.topup_packages || []).find(p => p.id === pkgId && p.is_active) || null;
+    }
+    if (!pkg && pkgId === undefined && type !== 'vip') {
+      // Fallback: match package by តម្លៃត្រូវបង់ (pay_amount / price)
+      pkg = (db.topup_packages || []).find(p => p.is_active && Math.abs(parseFloat(p.price) - parseFloat(amount || 0)) < 0.001) || null;
+    }
 
-    const qrImageBase64 = await QRCode.toDataURL(qrString, {
+    const payAmount = pkg ? parseFloat(pkg.price) : parseFloat(amount || 1.0);
+    const payAmountVal = payAmount.toFixed(2);
+    const creditAmount = pkg && type !== 'vip' ? parseFloat(pkg.balance_amount || pkg.credit_amount || pkg.price) : null;
+
+    if (pkg && pkg.qr_image) {
+      // Use the EXACT Admin-uploaded fixed QR image for this package — no QR generation
+      packageQrImage = pkg.qr_image;
+    } else {
+      // Fallback: generate dynamic KHQR (only when the package has no uploaded QR image)
+      if (BAKONG_TOKEN) {
+        try {
+          const r = await axios.post(`${BAKONG_API_URL}/v1/generate_qr`, {
+            currency: 'USD', amount: parseFloat(payAmountVal),
+            merchantName: BAKONG_MERCHANT_NAME, merchantCity: BAKONG_MERCHANT_CITY,
+            merchantId: BAKONG_ACCOUNT_ID, billNumber: billNo,
+            storeLabel: 'ស្ដេចរឿង'
+          }, { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 8000 });
+          if (r.data?.data?.qr) qrString = r.data.data.qr;
+        } catch (e) { console.log('[Bakong] Fallback to manual KHQR'); }
+      }
+      if (!qrString) qrString = buildKHQRString(payAmountVal, billNo);
+    }
+
+    const qrImageBase64 = packageQrImage ? null : await QRCode.toDataURL(qrString, {
       errorCorrectionLevel: 'M', type: 'image/png', width: 400, margin: 2,
       color: { dark: '#000000', light: '#ffffff' }
     });
-    const md5Hash = crypto.createHash('md5').update(qrString).digest('hex');
+    const md5Hash = qrString ? crypto.createHash('md5').update(qrString).digest('hex') : null;
 
     db.bakong_transactions = db.bakong_transactions || [];
     const cutoff = Date.now() - 3600000;
@@ -217,16 +272,22 @@ router.post('/payment/bakong/create-qr', async (req, res) => {
     );
     db.bakong_transactions.push({
       tran_id: tranId, bill_no: billNo, user_id: user.id,
-      amount: parseFloat(amountVal), type: type || 'topup',
+      amount: parseFloat(payAmountVal),
+      payAmount: parseFloat(payAmountVal),
+      creditAmount: creditAmount !== null ? parseFloat(creditAmount) : null,
+      package_id: pkg ? pkg.id : null,
+      package_name: pkg ? (pkg.name || pkg.title) : null,
+      type: type || 'topup',
       target_id: target_id || null, status: 'pending',
       qr_md5: md5Hash, created_at: new Date().toISOString()
     });
     writeDB(db);
 
-    // 100% automatic verification: no admin alert — the Bakong Open API
-    // (check_transaction_by_md5) verifies payment during polling.
-
-    return res.json({ success: true, tran_id: tranId, amount: parseFloat(amountVal), qr_image: qrImageBase64, qr_md5: md5Hash });
+    return res.json({
+      success: true, tran_id: tranId,
+      amount: parseFloat(payAmountVal), payAmount: parseFloat(payAmountVal), creditAmount,
+      qr_image: qrImageBase64, packageQrImage: packageQrImage, qr_md5: md5Hash
+    });
   } catch (error) {
     console.error('Bakong QR Error:', error.message);
     res.status(500).json({ success: false, message: 'មានបញ្ហាក្នុងការបង្កើត KHQR' });
@@ -268,6 +329,7 @@ async function verifyPaymentWithBakong(db, tx) {
     );
     console.log(`[Bakong Check] HTTP ${cr.status} responseCode=${cr.data?.responseCode} message=${cr.data?.responseMessage || 'n/a'} bill=${tx.bill_no}`);
     if (cr.data?.responseCode === 0 && cr.data?.data) {
+      const requiredPay = parseFloat(tx.payAmount || tx.amount) || 0;
       // Bakong returns an array (or object) of matching transactions — sum USD payments
       const items = Array.isArray(cr.data.data) ? cr.data.data : [cr.data.data];
       const usdTotal = items.reduce((sum, it) => {
@@ -275,17 +337,18 @@ async function verifyPaymentWithBakong(db, tx) {
         const isUSD = cur === 'USD' || cur === '840' || Number(it.currency) === 840;
         return isUSD ? sum + (parseFloat(it.amount) || 0) : sum;
       }, 0);
-      if (usdTotal + 0.001 >= tx.amount) {
+      if (usdTotal + 0.001 >= requiredPay) {
         tx.status = 'PAID'; tx.completed_at = new Date().toISOString(); tx.bakong_verified = true;
         tx.paid_amount = usdTotal;
+        const credited = tx.type === 'vip' ? tx.amount : (tx.creditAmount || tx.amount);
         const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
         if (userObj) {
-          if (tx.type === 'topup') {
-            userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
-          } else if (tx.type === 'vip') {
+          if (tx.type === 'vip') {
             userObj.is_vip = true;
             const exp = new Date(); exp.setDate(exp.getDate() + 30);
             userObj.vip_expires_at = exp.toISOString();
+          } else {
+            userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + credited);
           }
           // Send Telegram confirmation
           try {
@@ -293,17 +356,17 @@ async function verifyPaymentWithBakong(db, tx) {
             if (userObj.telegram_id) {
               const msg = tx.type === 'vip'
                 ? `✅ ការទូទាត់ VIP ជោគជ័យ!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
-                : `✅ បញ្ចូលប្រាក់ជោគជ័យ!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែម!`;
+                : `✅ បញ្ចូលប្រាក់ជោគជ័យ!\n💰 $${credited.toFixed(2)} ត្រូវបានបន្ថែម!`;
               await broadcastToUser(userObj.telegram_id, msg);
             }
           } catch(e) {}
         }
         recordBakongTransaction(db, tx, userObj);
         writeDB(db);
-        console.log(`[Bakong Check] ✅ AUTO-VERIFIED PAID bill=${tx.bill_no} paid=$${usdTotal} user=${tx.user_id}`);
-        return { status: 'PAID', amount: tx.amount, paid_amount: usdTotal };
+        console.log(`[Bakong Check] ✅ AUTO-VERIFIED PAID bill=${tx.bill_no} paid=$${usdTotal} credited=$${credited} user=${tx.user_id}`);
+        return { status: 'PAID', amount: tx.amount, creditedAmount: credited, paid_amount: usdTotal };
       }
-      console.warn(`[Bakong Check] Amount mismatch: paid $${usdTotal} < required $${tx.amount} bill=${tx.bill_no}`);
+      console.warn(`[Bakong Check] Amount mismatch: paid $${usdTotal} < required $${requiredPay} bill=${tx.bill_no}`);
       return { status: 'pending', debugReason: 'AMOUNT_MISMATCH', paid_amount: usdTotal };
     }
     console.log(`[Bakong Check] Not paid yet (responseCode ${cr.data?.responseCode}) bill=${tx.bill_no}`);
@@ -342,6 +405,144 @@ router.post('/payment/bakong/check-status', async (req, res) => {
 });
 
 /**
+ * POST /api/payment/bakong/verify-receipt
+ * 100% Free Local Server OCR (tesseract.js) + optional manual 8-char Hash input + Bakong Open API.
+ * Body: { billNo, receiptImageBase64, manualHash } — credits tx.creditAmount (ទឹកប្រាក់ទទួលបាន) on success.
+ */
+router.post('/payment/bakong/verify-receipt', async (req, res) => {
+  try {
+    const { billNo } = req.body || {};
+    const receiptImageBase64 = req.body?.receiptImageBase64 || null;
+    const manualHash = req.body?.manualHash || null;
+    if (!billNo || (!receiptImageBase64 && !manualHash)) {
+      return res.json({ ok: false, error: 'សូមភ្ជាប់រូបភាពវិក្កយបត្រ ឬវាយលេខកូដ Hash ជាមុនសិន!' });
+    }
+    const db = readDB();
+    const tx = (db.bakong_transactions || []).find(t => t.bill_no === billNo || t.tran_id === billNo);
+    if (!tx) return res.status(404).json({ ok: false, error: 'Transaction not found' });
+    if (tx.status === 'completed' || tx.status === 'PAID') {
+      return res.json({ ok: true, status: 'PAID', creditedAmount: tx.creditAmount || tx.amount });
+    }
+    const requiredPay = parseFloat(tx.payAmount || tx.amount) || 0;
+
+    // ── Step 1: Local OCR extraction (tesseract.js) + Manual Hash override ─
+    let ocrHash = '', fullHash = '', bankTrxId = '', ocrUSD = 0, ocrText = '';
+    if (receiptImageBase64) {
+      const m = String(receiptImageBase64).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
+      const imgBuffer = Buffer.from(m ? m[2] : String(receiptImageBase64), 'base64');
+      try {
+        const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng');
+        ocrText = String(text || '');
+        // 8-char Bakong Hash near "Hash:" label
+        const h8 = ocrText.match(/hash\s*[:#-]*\s*([a-f0-9]{8})\b/i);
+        if (h8) ocrHash = h8[1];
+        // 64-char full transaction hash fallback
+        const h64 = ocrText.match(/\b[a-f0-9]{64}\b/i);
+        if (h64) fullHash = h64[0];
+        // generic 8-char hex token containing both a letter and a digit
+        if (!ocrHash && !fullHash) {
+          const hAny = ocrText.match(/\b(?=[a-f0-9]*[a-f])(?=[a-f0-9]*[0-9])[a-f0-9]{8}\b/i);
+          if (hAny) ocrHash = hAny[0];
+        }
+        // bank Trx. ID (best-effort)
+        const trx = ocrText.match(/\b(?:trx|tx|trans(?:action)?)\s*[.#:-]?\s*id\s*[:#-]*\s*([a-z0-9][a-z0-9-]{5,})/i);
+        if (trx) bankTrxId = trx[1].trim();
+        // USD amount shown on the receipt
+        const usd = ocrText.match(/(?:\$|USD\s*)(\d+(?:\.\d{1,2})?)/i);
+        if (usd) ocrUSD = parseFloat(usd[1]) || 0;
+        console.log(`[Verify Receipt] OCR: hash=${ocrHash} h64=${fullHash ? 'yes' : 'no'} trxId=${bankTrxId} amount=$${ocrUSD} bill=${tx.bill_no}`);
+      } catch (ocrErr) {
+        console.error('[Verify Receipt] OCR failed:', ocrErr.message);
+      }
+    }
+
+    // Manual Hash Override: prioritize a valid 8-char / 64-char hash
+    const manualClean = manualHash ? String(manualHash).replace(/[^a-zA-Z0-9]/g, '') : '';
+    let cleanHash = '';
+    if (manualClean.length === 8 || manualClean.length === 64) cleanHash = manualClean;
+    else if (ocrHash) cleanHash = ocrHash;
+    else if (fullHash) cleanHash = fullHash;
+
+    // OCR amount sanity check (only when a USD amount is clearly detected)
+    if (ocrUSD > 0 && ocrUSD + 0.001 < requiredPay) {
+      return res.json({ ok: false, error: 'ចំនួនទឹកប្រាក់លើវិក្កយបត្រមិនគ្រប់តាមតម្លៃកញ្ចប់ទេ!' });
+    }
+
+    // ── Step 2: Anti-replay / duplicate lock ──────────────────────────────
+    const hLow = cleanHash.toLowerCase();
+    const idLow = bankTrxId.toLowerCase();
+    const pools = [db.bakong_transactions || [], db.aba_transactions || []];
+    for (const pool of pools) {
+      for (const t of pool) {
+        if (t === tx) continue;
+        if (!['PAID', 'completed'].includes(t.status)) continue;
+        if ((t.bakongHash && String(t.bakongHash).toLowerCase() === hLow && hLow) ||
+            (t.bankTrxId && String(t.bankTrxId).toLowerCase() === idLow && idLow)) {
+          return res.json({ ok: false, error: 'វិក្កយបត្រនេះត្រូវបានប្រើប្រាស់រួចហើយ (Duplicate Receipt)!' });
+        }
+      }
+    }
+
+    // ── Step 3: Bakong Open API cross-verification (BAKONG_TOKEN) ─────────
+    if (!BAKONG_TOKEN) {
+      return res.json({ ok: false, error: 'MISSING_BAKONG_TOKEN: ប្រព័ន្ធ Bakong មិនបានកំណត់រួចរាល់ទេ!' });
+    }
+    if (!cleanHash || (cleanHash.length !== 8 && cleanHash.length !== 64)) {
+      // ── Emergency Admin Fallback: blurry receipt, no valid hash, no manualHash
+      if (receiptImageBase64) {
+        try {
+          const m2 = String(receiptImageBase64).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
+          const imgBuffer = Buffer.from(m2 ? m2[2] : String(receiptImageBase64), 'base64');
+          const user = db.users.find(u => String(u.id) === String(tx.user_id));
+          const caption = `🆘 វិក្កយបត្រមិនច្បាស់ (OCR រក Hash មិនឃើញ)\n━━━━━━━━━━━━━━━━\n👤 User: ${user?.first_name || 'User'} (ID: ${tx.user_id})\n💰 តម្លៃត្រូវបង់៖ $${requiredPay.toFixed(2)}\n🧾 Bill No: <code>${tx.bill_no}</code>\n\n👉 សូមពិនិត្យរូបភាព រួចអនុម័ត៖`;
+          await sendReceiptToAdmin(imgBuffer, `receipt_${tx.bill_no}.jpg`, caption, { inline_keyboard: [[
+            { text: `✅ អនុម័តការបង់ប្រាក់ ($${requiredPay.toFixed(2)})`, callback_data: `approve_pay_${tx.bill_no}` }
+          ]] });
+        } catch (e) { console.error('[Verify Receipt] Admin fallback send failed:', e.message); }
+      }
+      return res.json({ ok: false, error: 'រូបភាពវិក្កយបត្រមិនច្បាស់លេខ Hash! សូមវាយលេខកូដ Hash ៨ ខ្ទង់ខាងក្រោម ឬរង់ចាំ Admin ពិនិត្យបន្តិច។' });
+    }
+    let verifyRes = null;
+    if (cleanHash.length === 8) {
+      verifyRes = await axios.post(`${BAKONG_API_BASE}/check_transaction_by_short_hash`,
+        { hash: cleanHash, amount: requiredPay, currency: 'USD' },
+        { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 10000 });
+    } else {
+      verifyRes = await axios.post(`${BAKONG_API_BASE}/check_transaction_by_hash`,
+        { hash: cleanHash },
+        { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 10000 });
+    }
+    console.log(`[Verify Receipt] Bakong HTTP ${verifyRes.status} responseCode=${verifyRes.data?.responseCode} message=${verifyRes.data?.responseMessage || 'n/a'} bill=${tx.bill_no}`);
+    if (verifyRes.data?.responseCode === 0 && verifyRes.data?.data) {
+      const items = Array.isArray(verifyRes.data.data) ? verifyRes.data.data : [verifyRes.data.data];
+      const usdPaid = items.reduce((sum, it) => {
+        const cur = String(it.currency ?? '').toUpperCase();
+        const isUSD = cur === 'USD' || cur === '840' || Number(it.currency) === 840;
+        return isUSD ? sum + (parseFloat(it.amount) || 0) : sum;
+      }, 0);
+      if (usdPaid + 0.001 >= requiredPay) {
+        tx.bakongHash = cleanHash;
+        tx.bankTrxId = bankTrxId;
+        tx.paid_amount = usdPaid;
+        tx.ocr_text = ocrText.slice(0, 500);
+        const approved = await approvePaymentByBillNo(tx.bill_no);
+        if (approved.ok) {
+          console.log(`[Verify Receipt] ✅ PAID via Bakong API bill=${tx.bill_no} credited=$${approved.creditedAmount}`);
+          return res.json({ ok: true, status: 'PAID', creditedAmount: approved.creditedAmount });
+        }
+        return res.json({ ok: false, error: 'មានបញ្ហាក្នុងការអនុម័តការទូទាត់!' });
+      }
+      return res.json({ ok: false, error: 'ចំនួនទឹកប្រាក់ Bakong រកឃើញមិនគ្រប់តាមតម្លៃកញ្ចប់ទេ!' });
+    }
+    return res.json({ ok: false, error: 'ប្រព័ន្ធ Bakong មិនទាន់រកឃើញប្រតិបត្តិការនេះទេ សូមពិនិត្យរូបភាពវិក្កយបត្រ ឬសាកល្បងម្ដងទៀត!' });
+  } catch (e) {
+    const httpStatus = e.response?.status || 'NO_RESPONSE';
+    console.error(`[Verify Receipt] FAILED HTTP ${httpStatus}:`, e.message);
+    return res.json({ ok: false, error: 'ប្រព័ន្ធ Bakong មិនទាន់រកឃើញប្រតិបត្តិការនេះទេ សូមពិនិត្យរូបភាពវិក្កយបត្រ ឬសាកល្បងម្ដងទៀត!' });
+  }
+});
+
+/**
  * POST /api/payment/bakong/webhook
  */
 router.post('/payment/bakong/webhook', async (req, res) => {
@@ -351,9 +552,10 @@ router.post('/payment/bakong/webhook', async (req, res) => {
     const tx = (db.bakong_transactions || []).find(t => t.tran_id === tran_id || t.bill_no === tran_id);
     if (tx && tx.status !== 'completed' && (status === '0' || status === 0 || status === 'SUCCESS')) {
       tx.status = 'completed'; tx.completed_at = new Date().toISOString();
+      const credited = tx.type === 'vip' ? tx.amount : (tx.creditAmount || tx.amount);
       const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
       if (userObj) {
-        if (tx.type === 'topup') userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
+        if (tx.type === 'topup') userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + credited);
         else if (tx.type === 'vip') {
           userObj.is_vip = true;
           const exp = new Date(); exp.setDate(exp.getDate() + 30);

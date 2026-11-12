@@ -669,57 +669,29 @@ const app = createApp({
       }
     };
 
-    const generateBakongQR = async (amount, type, targetId = null) => {
-      qrModalData.value = { ...qrModalData.value, loading: true, qr_image: null, paymentStatus: null };
+    const generateBakongQR = async (amount, type, targetId = null, packageId = null) => {
+      qrModalData.value = { ...qrModalData.value, loading: true, qr_image: null, packageQrImage: null, receiptPreview: null, paymentStatus: null, paymentError: null };
       isQrModalOpen.value = true;
       try {
         const res = await axios.post('/api/payment/bakong/create-qr', {
           amount: amount,
           type: type,
-          target_id: targetId
+          target_id: targetId,
+          package_id: packageId
         });
         if (res.data && res.data.success) {
           qrModalData.value = {
             ...qrModalData.value,
             loading: false,
             qr_image: res.data.qr_image,
+            packageQrImage: res.data.packageQrImage || null,
             tran_id: res.data.tran_id,
             qr_md5: res.data.qr_md5 || null,
-            amount: amount,
-            paymentStatus: 'checking'
+            amount: res.data.payAmount || amount,
+            payAmount: res.data.payAmount || amount,
+            creditAmount: res.data.creditAmount != null ? res.data.creditAmount : null,
+            paymentStatus: 'awaiting_receipt'
           };
-          clearPaymentPolling();
-          paymentPollingInterval = setInterval(async () => {
-            try {
-              const checkRes = await axios.get('/api/payment/bakong/check-status?tran_id=' + res.data.tran_id);
-              if (checkRes.data.debugReason) {
-                console.log('[Payment] Bakong check debugReason:', checkRes.data.debugReason);
-              }
-              if (checkRes.data.status === 'completed' || checkRes.data.status === 'PAID') {
-                clearPaymentPolling();
-                qrModalData.value.paymentStatus = 'success';
-                try {
-                  const meRes = await axios.get('/api/me');
-                  if (meRes.data && meRes.data.user) {
-                    user.value = {
-                      ...user.value,
-                      ...meRes.data.user,
-                      wallet_balance: parseFloat(meRes.data.user.wallet_balance || 0),
-                      is_vip: Boolean(meRes.data.user.is_vip),
-                      vip_expires_at: meRes.data.user.vip_expires_at || null
-                    };
-                  }
-                } catch(e) {}
-                showNotify('✅ ការទូទាត់ជោគជ័យ! គណនីបានធ្វើបច្ចុប្បន្នភាពហើយ!', 'success');
-                refreshHistory();
-                setTimeout(() => { isQrModalOpen.value = false; }, 3000);
-              } else if (checkRes.data.status === 'failed') {
-                clearPaymentPolling();
-                qrModalData.value.paymentStatus = 'failed';
-                qrModalData.value.paymentError = 'ការទូទាត់បរាជ័យ ឬទឹកប្រាក់មិនត្រឹមត្រូវ!';
-              }
-            } catch(e) {}
-          }, 3000);
         } else {
           qrModalData.value.loading = false;
           qrModalData.value.paymentStatus = 'failed';
@@ -732,51 +704,74 @@ const app = createApp({
       }
     };
 
-    const iHavePaid = async () => {
-      if (!qrModalData.value.tran_id) return;
-      showNotify('🔄 កំពុងផ្ទៀងផ្ទៀងជាមួយ Bakong API...', 'info');
+    // 📎 Receipt upload: thumbnail preview + ✅ Confirm Payment → AI OCR + Bakong API verification
+    const onReceiptFileChange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) { qrModalData.value.receiptPreview = null; return; }
+      const reader = new FileReader();
+      reader.onload = () => { qrModalData.value.receiptPreview = reader.result; };
+      reader.readAsDataURL(file);
+    };
+
+    const applyPaidResult = async (creditedAmount) => {
+      clearPaymentPolling();
+      qrModalData.value.paymentStatus = 'success';
       try {
-        const res = await axios.post('/api/payment/bakong/check-status', {
-          md5: qrModalData.value.qr_md5 || null,
-          billNo: qrModalData.value.tran_id
+        const meRes = await axios.get('/api/me');
+        if (meRes.data && meRes.data.user) {
+          user.value = {
+            ...user.value,
+            ...meRes.data.user,
+            wallet_balance: parseFloat(meRes.data.user.wallet_balance || 0),
+            is_vip: Boolean(meRes.data.user.is_vip),
+            vip_expires_at: meRes.data.user.vip_expires_at || null
+          };
+        }
+      } catch(e) {}
+      refreshHistory();
+      showNotify('✅ ការទូទាត់ជោគជ័យ! បានបន្ថែម +$' + parseFloat(creditedAmount || qrModalData.value.creditAmount || qrModalData.value.amount).toFixed(2) + ' ទៅគណនីរបស់អ្នក!', 'success');
+      setTimeout(() => { isQrModalOpen.value = false; }, 3000);
+    };
+
+    const verifyReceipt = async () => {
+      if (!qrModalData.value.tran_id) return;
+      const hasReceipt = !!qrModalData.value.receiptPreview;
+      const hasManualHash = !!(qrModalData.value.manualHash && qrModalData.value.manualHash.trim().length >= 8);
+      if (!hasReceipt && !hasManualHash) {
+        showNotify('សូមភ្ជាប់រូបភាពវិក្កយបត្រ ឬវាយលេខកូដ Hash ជាមុនសិន!', 'error');
+        return;
+      }
+      qrModalData.value.paymentStatus = 'verifying';
+      showNotify('🔄 កំពុងផ្ទៀងផ្ទាត់វិក្កយបត្រជាមួយ Bakong API...', 'info');
+      try {
+        const res = await axios.post('/api/payment/bakong/verify-receipt', {
+          billNo: qrModalData.value.tran_id,
+          receiptImageBase64: hasReceipt ? qrModalData.value.receiptPreview : null,
+          manualHash: hasManualHash ? qrModalData.value.manualHash.trim() : null
         });
-        if (res.data.status === 'PAID' || res.data.status === 'completed') {
-          clearPaymentPolling();
-          qrModalData.value.paymentStatus = 'success';
-          try {
-            const meRes = await axios.get('/api/me');
-            if (meRes.data && meRes.data.user) {
-              user.value = {
-                ...user.value,
-                ...meRes.data.user,
-                wallet_balance: parseFloat(meRes.data.user.wallet_balance || 0),
-                is_vip: Boolean(meRes.data.user.is_vip),
-                vip_expires_at: meRes.data.user.vip_expires_at || null
-              };
-            }
-          } catch(e) {}
-          refreshHistory();
-          showNotify('✅ ការទូទាត់ជោគជ័យ! ទឹកប្រាក់ត្រូវបានបញ្ចូលភ្លាមៗ', 'success');
-          setTimeout(() => { isQrModalOpen.value = false; }, 3000);
-        } else if (res.data.debugReason === 'NOT_PAID_YET' || res.data.status === 'pending') {
-          showNotify('⏳ មិនទាន់ឃើញប្រតិបត្តិការនៅឡើយទេ សូមរង់ចាំ ៣ វិនាទី ឬចុចម្តងទៀត', 'info');
+        if (res.data.ok && (res.data.status === 'PAID')) {
+          await applyPaidResult(res.data.creditedAmount);
         } else {
-          const reason = res.data.debugReason || 'BAKONG_API_ERROR';
-          showNotify('⚠️ Bakong API: ' + reason + ' — Render IP អាចត្រូវប្លុក ឬ Token ផុតសុពលភាព!', 'error');
+          qrModalData.value.paymentStatus = 'awaiting_receipt';
+          qrModalData.value.paymentError = res.data.error || 'ការផ្ទៀងផ្ទាត់បរាជ័យ!';
+          showNotify('⚠️ ' + (res.data.error || 'ការផ្ទៀងផ្ទាត់បរាជ័យ!'), 'error');
         }
       } catch (e) {
-        showNotify('⚠️ មិនអាចភ្ជាប់ Bakong API បានទេ!', 'error');
+        qrModalData.value.paymentStatus = 'awaiting_receipt';
+        qrModalData.value.paymentError = 'មានបញ្ហាក្នុងការភ្ជាប់ Server!';
+        showNotify('⚠️ មានបញ្ហាក្នុងការភ្ជាប់ Server!', 'error');
       }
     };
 
     const downloadQR = () => {
-      if (!qrModalData.value.qr_image) {
+      const qrSrc = qrModalData.value.packageQrImage || qrModalData.value.qr_image;
+      if (!qrSrc) {
         showNotify('មិនមាន QR Code ដើម្បីរក្សាទុក!', 'error');
         return;
       }
       try {
         const link = document.createElement('a');
-        link.href = qrModalData.value.qr_image;
+        link.href = qrSrc;
         link.download = `KHQR_${qrModalData.value.amount || 0}USD_${Date.now()}.png`;
         document.body.appendChild(link);
         link.click();
@@ -794,7 +789,7 @@ const app = createApp({
         loading: true,
         paymentStatus: null
       };
-      generateBakongQR(pkg.price, 'topup');
+      generateBakongQR(pkg.price, 'topup', null, pkg.id);
     };
 
     const openVip = (plan) => {
@@ -805,7 +800,7 @@ const app = createApp({
         loading: true,
         paymentStatus: null
       };
-      generateBakongQR(plan.price, 'vip');
+      generateBakongQR(plan.price, 'vip', null, plan.id);
     };
 
     // ==========================================
@@ -973,7 +968,7 @@ const app = createApp({
       adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
       openTopup, openVip, nextSlide, prevSlide, onTouchStart, onTouchEnd,
       formatVipExpire, getVipRemainingDays,
-      isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR, iHavePaid,
+      isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR, verifyReceipt, onReceiptFileChange,
       showHistoryModal, historyList, historyFilter, loadingHistory, filteredHistory, formatHistoryTime, openHistoryModal,
       isMobileDeviceRef, isVideoPlaying, showMobileCenterBtn, toggleMobileCenterPlay
     };
