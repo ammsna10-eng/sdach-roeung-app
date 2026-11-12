@@ -1,5 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const _dataDir = path.join(__dirname, 'data');
+const _dbFile = path.join(_dataDir, 'db.json');
+if (!fs.existsSync(_dataDir)) fs.mkdirSync(_dataDir, { recursive: true });
+if (!fs.existsSync(_dbFile)) fs.writeFileSync(_dbFile, '{}', 'utf8');
 const { MongoClient } = require('mongodb');
 const localDb = require('./db.local');
 

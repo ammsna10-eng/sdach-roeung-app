@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "prod": "node server.js & node bot.js",
+    "prod": "node bot.js & node server.js",
     "bot": "node bot.js",
     "dev": "node server.js",
     "pull-db": "node scripts/sync_db.js"
