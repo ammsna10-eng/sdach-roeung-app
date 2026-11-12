@@ -1,3 +1,4 @@
+require('./db').initCloudDB().catch(() => {});
 // Force IPv4-first DNS: Node.js v24 tries IPv6 first on Render, causing ETIMEDOUT to api.telegram.org
 require('dns').setDefaultResultOrder('ipv4first');
 const { Telegraf, Markup } = require('telegraf');

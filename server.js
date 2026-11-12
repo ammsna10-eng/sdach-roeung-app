@@ -80,7 +80,8 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+require('./db').initCloudDB().finally(() => {
+  app.listen(PORT, () => {
   console.log(`===============================================`);
   console.log(`👑 Sdach Roeung (ស្ដេចរឿង) Mini App & Admin Server Running!`);
   console.log(`🌐 Local URL: http://localhost:${PORT}`);
@@ -90,4 +91,5 @@ app.listen(PORT, () => {
   console.log(`   Email: admin@phsarroeung.com`);
   console.log(`   Password: admin123`);
   console.log(`===============================================`);
+});
 });

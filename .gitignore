@@ -3,4 +3,4 @@ bin/
 *.log
 .env
 data/backups/
-
+data/db.json
