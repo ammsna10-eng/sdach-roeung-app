@@ -346,12 +346,45 @@ router.put('/data/topups/:id', (req, res) => {
   const prevStatus = normalizeTopupStatus(record.status);
   record.status = isBakong && newStatus === 'approved' ? 'completed' : newStatus;
 
+  const billNo = String(record.tran_id || record.bill_no || record.id || '');
+  db.transactions = db.transactions || [];
+
   if (newStatus === 'approved' && prevStatus !== 'approved') {
     const user = (db.users || []).find(u => String(u.id) === String(record.user_id) || String(u.telegram_id) === String(record.user_id));
+    const added = parseFloat(record.creditAmount ?? record.received_amount ?? record.amount ?? 0) || 0;
+
     if (user) {
-      const added = parseFloat(record.creditAmount ?? record.received_amount ?? record.amount ?? 0) || 0;
-      user.wallet_balance = +(parseFloat(user.wallet_balance || 0) + added).toFixed(2);
+      if (record.type === 'vip') {
+        const plan = (db.vip_plans || []).find(p => String(p.id) === String(record.package_id || record.target_id));
+        const days = parseInt(plan?.duration_days || 30, 10);
+        const baseTime = Math.max(Date.now(), new Date(user.vip_expires_at || 0).getTime() || 0);
+        user.is_vip = true;
+        user.vip_expires_at = new Date(baseTime + days * 24 * 60 * 60 * 1000).toISOString();
+      } else {
+        user.wallet_balance = +(parseFloat(user.wallet_balance || 0) + added).toFixed(2);
+      }
+
+      const existingTx = db.transactions.find(tx => billNo && String(tx.billNo) === billNo);
+      if (existingTx) {
+        existingTx.status = 'COMPLETED';
+        if (record.type !== 'vip') existingTx.amount = added;
+      } else {
+        db.transactions.push({
+          id: 'T' + Date.now(),
+          user_id: user.id,
+          telegram_id: user.telegram_id || user.id,
+          type: record.type === 'vip' ? 'VIP_PURCHASE' : 'TOPUP',
+          title: record.package_name || (record.type === 'vip' ? 'ទិញកញ្ចប់ VIP (អនុម័តដោយ Admin)' : 'បញ្ចូលទឹកប្រាក់ (អនុម័តដោយ Admin)'),
+          amount: record.type === 'vip' ? -Math.abs(parseFloat(record.amount || 0)) : added,
+          status: 'COMPLETED',
+          billNo: billNo,
+          createdAt: new Date().toISOString()
+        });
+      }
     }
+  } else if (newStatus === 'rejected' && billNo) {
+    // Remove un-paid pending entry from user transaction history so it doesn't show as completed
+    db.transactions = db.transactions.filter(tx => !(String(tx.billNo) === billNo && String(tx.status).toUpperCase() === 'PENDING'));
   }
 
   writeDB(db);
