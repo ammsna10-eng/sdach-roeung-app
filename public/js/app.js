@@ -322,6 +322,13 @@ const app = createApp({
       }
       isMobileFullscreen.value = true;
       isFullscreenLandscape.value = true;
+      // Sync Plyr's fullscreen button to the exit-fullscreen icon state
+      const fsBtn = wrapper.querySelector('[data-plyr="fullscreen"]');
+      if (fsBtn) fsBtn.setAttribute('aria-pressed', 'true');
+      // Show the timeline and play/pause controls immediately
+      if (plyrInstance && typeof plyrInstance.toggleControls === 'function') {
+        plyrInstance.toggleControls(true);
+      }
       const tg = window.Telegram?.WebApp;
       if (tg?.requestFullscreen) {
         try { tg.requestFullscreen(); } catch (e) {}
@@ -336,6 +343,9 @@ const app = createApp({
       isMobileFullscreen.value = false;
       isFullscreenLandscape.value = false;
       clearMobileFullscreenClasses();
+      // Reset Plyr's fullscreen button icon state
+      const fsBtn = document.querySelector('#sdach-player-wrapper [data-plyr="fullscreen"]');
+      if (fsBtn) fsBtn.setAttribute('aria-pressed', 'false');
       const tg = window.Telegram?.WebApp;
       if (tg?.exitFullscreen) {
         try { tg.exitFullscreen(); } catch (e) {}
@@ -415,7 +425,7 @@ const app = createApp({
 
         if (!plyrInstance) {
           plyrInstance = new Plyr(v, {
-            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
+            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'pip', 'fullscreen'],
             fullscreen: { enabled: true, fallback: 'force', iosNative: false },
             seekTime: 5,
             keyboard: { focused: true, global: true },

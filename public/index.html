@@ -88,6 +88,30 @@
       object-fit: contain !important;
     }
 
+    /* 📱 Plyr must fill the exact rotated/edge-to-edge viewport so the timeline
+       and controls are never pushed off-screen below the bottom edge */
+    #sdach-player-wrapper.sdach-force-landscape .plyr,
+    #sdach-player-wrapper.sdach-force-landscape .plyr__video-wrapper,
+    #sdach-player-wrapper.sdach-edge-fullscreen .plyr,
+    #sdach-player-wrapper.sdach-edge-fullscreen .plyr__video-wrapper {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      aspect-ratio: unset !important;
+      padding-bottom: 0 !important;
+    }
+
+    #sdach-player-wrapper.sdach-force-landscape .plyr__controls,
+    #sdach-player-wrapper.sdach-edge-fullscreen .plyr__controls {
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 50 !important;
+      padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    }
+
     /* Seek animation badges */
     .seek-badge-pop {
       opacity: 1 !important;
@@ -786,7 +810,7 @@
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   
   <!-- App Script -->
-  <script src="/js/app.js?v=fullscreen_split_v1"></script>
+  <script src="/js/app.js?v=timeline_pip_fix_v2"></script>
 </body>
 </html>
 
