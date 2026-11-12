@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { readDB, writeDB, getCurrentUser } = require('../db');
+const { readDB, writeDB, getCurrentUser, recordTransaction } = require('../db');
 
 router.get('/user/movies', (req, res) => {
   const db = readDB();
@@ -117,7 +117,17 @@ router.post('/user/movies/:id/purchase', (req, res) => {
 
   user.wallet_balance = +(parseFloat(user.wallet_balance) - price).toFixed(2);
   db.purchases = db.purchases || [];
-  db.purchases.push({ id: Date.now(), user_id: user.id, movie_id: movie.id, amount: price, created_at: new Date().toISOString() });
+  const purchaseRec = { id: Date.now(), user_id: user.id, movie_id: movie.id, amount: price, created_at: new Date().toISOString() };
+  db.purchases.push(purchaseRec);
+  recordTransaction(db, {
+    userId: user.id,
+    telegramId: user.telegram_id || user.id,
+    type: 'MOVIE_PURCHASE',
+    title: 'ទិញរឿង: ' + (movie.title_kh || movie.title_en || movie.id),
+    amount: -price,
+    status: 'COMPLETED',
+    billNo: 'P' + purchaseRec.id
+  });
   writeDB(db);
 
   // Return the newly unlocked movie with video_url included so client can play immediately
@@ -145,7 +155,17 @@ router.post('/user/episodes/:id/purchase', (req, res) => {
 
   user.wallet_balance = +(parseFloat(user.wallet_balance) - price).toFixed(2);
   db.purchases = db.purchases || [];
-  db.purchases.push({ id: Date.now(), user_id: user.id, movie_id: episode.movie_id, episode_id: episode.id, amount: price, created_at: new Date().toISOString() });
+  const purchaseRec = { id: Date.now(), user_id: user.id, movie_id: episode.movie_id, episode_id: episode.id, amount: price, created_at: new Date().toISOString() };
+  db.purchases.push(purchaseRec);
+  recordTransaction(db, {
+    userId: user.id,
+    telegramId: user.telegram_id || user.id,
+    type: 'MOVIE_PURCHASE',
+    title: 'ទិញភាគ: ' + (episode.title_kh || episode.title_en || ('ភាគ ' + (episode.episode_number || ''))).trim(),
+    amount: -price,
+    status: 'COMPLETED',
+    billNo: 'P' + purchaseRec.id
+  });
   writeDB(db);
 
   res.json({

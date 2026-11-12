@@ -91,6 +91,64 @@ router.get('/me', (req, res) => {
   res.json({ user, purchased_movies: purchasedMovies, purchased_episodes: purchasedEpisodes });
 });
 
+router.get('/transactions/history', (req, res) => {
+  const db = readDB();
+  const user = getCurrentUser(req, db);
+  if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+  const uid = String(user.id);
+  const tgid = String(user.telegram_id || '');
+  const isMine = (t) => String(t.userId ?? t.user_id) === uid || (t.telegram_id && String(t.telegram_id) === tgid);
+
+  const merged = [];
+  const seenKeys = new Set();
+
+  // 1) Newly recorded transactions (source of truth going forward)
+  for (const t of (db.transactions || [])) {
+    if (!isMine(t)) continue;
+    merged.push(t);
+    if (t.billNo) seenKeys.add(String(t.billNo));
+  }
+
+  // 2) Legacy backfill (pre-history data), deduped by billNo
+  for (const p of (db.purchases || [])) {
+    const key = 'P' + p.id;
+    if (!isMine(p) || seenKeys.has(key)) continue;
+    const movie = (db.movies || []).find(m => String(m.id) === String(p.movie_id));
+    merged.push({
+      id: key, billNo: key, userId: p.user_id,
+      type: 'MOVIE_PURCHASE',
+      title: 'ទិញរឿង: ' + (movie?.title_kh || movie?.title_en || p.movie_id),
+      amount: -Math.abs(parseFloat(p.amount) || 0),
+      direction: 'OUT', status: 'COMPLETED',
+      createdAt: p.created_at
+    });
+    seenKeys.add(key);
+  }
+  for (const tx of [...(db.bakong_transactions || []), ...(db.aba_transactions || [])]) {
+    if (tx.status !== 'completed' && tx.status !== 'PAID') continue;
+    const key = tx.bill_no || tx.tran_id;
+    if (!isMine(tx) || seenKeys.has(key)) continue;
+    merged.push({
+      id: key, billNo: key, userId: tx.user_id,
+      type: tx.type === 'vip' ? 'VIP_PURCHASE' : 'TOPUP',
+      title: tx.type === 'vip' ? 'ទិញកញ្ចប់ VIP ប្រចាំខែ' : 'បញ្ចូលទឹកប្រាក់ KHQR',
+      amount: tx.type === 'vip' ? -Math.abs(parseFloat(tx.amount) || 0) : Math.abs(parseFloat(tx.amount) || 0),
+      direction: tx.type === 'vip' ? 'OUT' : 'IN', status: 'PAID',
+      createdAt: tx.completed_at || tx.created_at
+    });
+    seenKeys.add(key);
+  }
+
+  merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({
+    transactions: merged,
+    wallet_balance: parseFloat(user.wallet_balance || 0),
+    is_vip: Boolean(user.is_vip),
+    vip_expires_at: user.vip_expires_at || null
+  });
+});
+
 router.get('/user/topup-packages', (req, res) => {
   res.json(readDB().topup_packages || []);
 });

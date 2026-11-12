@@ -28,4 +28,23 @@ function getCurrentUser(req, db) {
   return user;
 }
 
-module.exports = { readDB, writeDB, getCurrentUser };
+// Record a balance-changing event in the user's transaction history
+// type: 'TOPUP' | 'MOVIE_PURCHASE' | 'VIP_PURCHASE'
+// amount: positive for TOPUP, negative for spending entries
+function recordTransaction(db, { userId, telegramId, type, title, amount, status = 'COMPLETED', billNo = null }) {
+  db.transactions = db.transactions || [];
+  db.transactions.push({
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    billNo: billNo || null,
+    userId: userId,
+    telegram_id: telegramId != null ? String(telegramId) : null,
+    type: type,
+    title: title,
+    amount: +parseFloat(amount || 0).toFixed(2),
+    direction: parseFloat(amount) >= 0 ? 'IN' : 'OUT',
+    status: status,
+    createdAt: new Date().toISOString()
+  });
+}
+
+module.exports = { readDB, writeDB, getCurrentUser, recordTransaction };

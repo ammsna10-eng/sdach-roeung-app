@@ -164,6 +164,12 @@
             <span class="text-[10px] bg-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full group-hover:scale-105 transition-transform">+</span>
           </div>
 
+          <!-- 📜 Transaction History Button -->
+          <button @click="openHistoryModal" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/15 hover:bg-purple-500/30 border border-purple-400/40 text-purple-300 font-bold text-xs shadow-md transition-all active:scale-95" title="ប្រវត្តិប្រតិបត្តិការ">
+            <span>📜</span>
+            <span class="hidden sm:inline">ប្រវត្តិ</span>
+          </button>
+
           <!-- VIP Crown Badge -->
           <button @click="activeTab = 'wallet'" class="relative p-2 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 text-black font-bold shadow-lg shadow-amber-500/25 hover:brightness-110 active:scale-95 transition-all">
             <span class="text-base">👑</span>
@@ -772,6 +778,57 @@
       </div>
     </div>
 
+    <!-- 📜 TRANSACTION HISTORY MODAL -->
+    <div v-if="showHistoryModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-xl" @click.self="showHistoryModal = false">
+      <div class="w-full sm:max-w-md h-[85vh] sm:h-auto sm:max-h-[80vh] rounded-t-3xl sm:rounded-3xl bg-[#120a21] border border-purple-500/30 flex flex-col overflow-hidden shadow-2xl">
+        <!-- Header + Balance summary -->
+        <div class="p-5 pb-4 border-b border-white/10 bg-gradient-to-r from-purple-900/40 via-[#120a21] to-purple-900/40 shrink-0">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">📜 ប្រវត្តិប្រតិបត្តិការ</h3>
+            <button @click="showHistoryModal = false" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+          </div>
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25">
+            <span class="text-[11px] text-amber-300/80 font-bold">សមតុល្យបច្ចុប្បន្ន</span>
+            <span class="text-xl font-black text-amber-300 font-mono">${{ (user.wallet_balance || 0).toFixed(2) }}</span>
+          </div>
+          <!-- Filter tabs -->
+          <div class="grid grid-cols-3 gap-2 mt-3">
+            <button @click="historyFilter = 'all'" :class="historyFilter === 'all' ? 'bg-white/15 border-white/30 text-white' : 'bg-white/5 border-white/10 text-slate-400'" class="py-1.5 rounded-xl border text-[11px] font-bold transition-all active:scale-95">ទាំងអស់ (All)</button>
+            <button @click="historyFilter = 'in'" :class="historyFilter === 'in' ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300' : 'bg-white/5 border-white/10 text-slate-400'" class="py-1.5 rounded-xl border text-[11px] font-bold transition-all active:scale-95">បញ្ចូលប្រាក់ (+)</button>
+            <button @click="historyFilter = 'out'" :class="historyFilter === 'out' ? 'bg-rose-500/20 border-rose-400/40 text-rose-300' : 'bg-white/5 border-white/10 text-slate-400'" class="py-1.5 rounded-xl border text-[11px] font-bold transition-all active:scale-95">ចំណាយ (-)</button>
+          </div>
+        </div>
+        <!-- Scrollable list -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-2">
+          <div v-if="loadingHistory" class="flex flex-col items-center justify-center py-12 gap-3">
+            <div class="w-8 h-8 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-purple-300 text-xs font-bold">កំពុងផ្ទុក...</span>
+          </div>
+          <div v-else-if="filteredHistory.length === 0" class="flex flex-col items-center justify-center py-12 gap-2">
+            <span class="text-4xl">🗒️</span>
+            <span class="text-slate-400 text-xs font-bold">មិនមានប្រវត្តិប្រតិបត្តិការនៅឡើយទេ</span>
+          </div>
+          <div v-else v-for="t in filteredHistory" :key="t.id" class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-400/30 transition-all">
+            <div class="flex items-center gap-3 min-w-0">
+              <div :class="parseFloat(t.amount) >= 0 ? 'bg-emerald-500/15 border-emerald-400/30' : 'bg-rose-500/15 border-rose-400/30'" class="w-10 h-10 rounded-xl border flex items-center justify-center text-lg shrink-0">
+                {{ t.type === 'TOPUP' ? '💰' : (t.type === 'VIP_PURCHASE' ? '👑' : '🎬') }}
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-white truncate">{{ t.title }}</div>
+                <div class="text-[10px] text-slate-400 font-mono">{{ formatHistoryTime(t.createdAt) }}</div>
+              </div>
+            </div>
+            <div class="text-right shrink-0 ml-2">
+              <div :class="parseFloat(t.amount) >= 0 ? 'text-emerald-400' : 'text-rose-400'" class="text-sm font-black font-mono">
+                {{ parseFloat(t.amount) >= 0 ? '+' : '-' }}${{ Math.abs(parseFloat(t.amount) || 0).toFixed(2) }}
+              </div>
+              <span :class="t.status === 'PENDING' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'" class="text-[9px] font-bold px-1.5 py-0.5 rounded-full">{{ t.status === 'PENDING' ? '⏳ រង់ចាំ' : '✓ បានបញ្ចប់' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 💳 TOPUP / VIP DYNAMIC KHQR MODAL -->
     <div v-if="isQrModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
       <div class="relative w-full max-w-sm rounded-3xl bg-[#120a21] border border-amber-500/30 p-6 text-center space-y-4 shadow-2xl">
@@ -799,6 +856,12 @@
           <div class="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
           <span class="text-blue-300 text-xs font-bold">កំពុងផ្ទៀងផ្ទាត់ការទូទាត់...</span>
         </div>
+
+        <!-- ✅ ខ្ញុំបានបង់ប្រាក់រួចហើយ: re-alerts Admin on Telegram for 1-Tap manual approve -->
+        <button v-if="qrModalData.paymentStatus === 'checking'" @click="iHavePaid"
+          class="w-full py-2.5 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow">
+          <span>✅ ខ្ញុំបានបង់ប្រាក់រួចហើយ (I Have Paid)</span>
+        </button>
         <div v-else-if="qrModalData.paymentStatus === 'success'" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
           <span class="text-emerald-400 text-xs font-bold">✅ ការទូទាត់ជោគជ័យ!</span>
         </div>
@@ -839,7 +902,7 @@
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   
   <!-- App Script -->
-  <script src="/js/app.js?v=speed_mobile_pause_v3"></script>
+  <script src="/js/app.js?v=history_wallet_v5"></script>
 </body>
 </html>
 

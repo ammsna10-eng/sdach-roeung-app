@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
-const { readDB, writeDB, getCurrentUser } = require('../db');
+const { readDB, writeDB, getCurrentUser, recordTransaction } = require('../db');
 
 /**
  * 🏦 Helper: Generate ABA PayWay Hash (HMAC-SHA512 or Base64)
@@ -109,6 +109,15 @@ router.post('/payment/aba/callback', (req, res) => {
           exp.setDate(exp.getDate() + 30);
           user.vip_expires_at = exp.toISOString();
         }
+        recordTransaction(db, {
+          userId: tx.user_id,
+          telegramId: user.telegram_id || tx.user_id,
+          type: tx.type === 'vip' ? 'VIP_PURCHASE' : 'TOPUP',
+          title: tx.type === 'vip' ? 'ទិញកញ្ចប់ VIP ប្រចាំខែ' : 'បញ្ចូលទឹកប្រាក់ ABA PayWay',
+          amount: tx.type === 'vip' ? -Math.abs(parseFloat(tx.amount) || 0) : Math.abs(parseFloat(tx.amount) || 0),
+          status: 'PAID',
+          billNo: tx.bill_no || tx.tran_id
+        });
       }
       writeDB(db);
     }

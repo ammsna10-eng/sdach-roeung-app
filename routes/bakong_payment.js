@@ -3,13 +3,103 @@ const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
-const { readDB, writeDB, getCurrentUser } = require('../db');
+const { readDB, writeDB, getCurrentUser, recordTransaction } = require('../db');
+
+// Record a completed Bakong payment (topup or VIP) in the user's transaction history
+function recordBakongTransaction(db, tx, userObj) {
+  recordTransaction(db, {
+    userId: tx.user_id,
+    telegramId: userObj?.telegram_id || tx.user_id,
+    type: tx.type === 'vip' ? 'VIP_PURCHASE' : 'TOPUP',
+    title: tx.type === 'vip' ? 'ទិញកញ្ចប់ VIP ប្រចាំខែ' : 'បញ្ចូលទឹកប្រាក់ KHQR',
+    amount: tx.type === 'vip' ? -Math.abs(parseFloat(tx.amount) || 0) : Math.abs(parseFloat(tx.amount) || 0),
+    status: 'PAID',
+    billNo: tx.bill_no || tx.tran_id
+  });
+}
 
 const BAKONG_TOKEN = process.env.BAKONG_TOKEN || '';
 const BAKONG_ACCOUNT_ID = process.env.BAKONG_ACCOUNT_ID || '002111782@abaa';
 const BAKONG_MERCHANT_NAME = process.env.BAKONG_MERCHANT_NAME || 'VEASNA CHAN';
 const BAKONG_MERCHANT_CITY = process.env.BAKONG_MERCHANT_CITY || 'Phnom Penh';
 const BAKONG_API_URL = 'https://api-bakong.nbc.gov.kh';
+const BOT_TOKEN = process.env.BOT_TOKEN || '';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || process.env.TELEGRAM_ADMIN_ID || '';
+const SYNC_SECRET = process.env.SYNC_SECRET || '';
+const WEBAPP_URL = process.env.WEBAPP_URL || '';
+
+// Send a raw Telegram message (optionally with an inline keyboard)
+async function sendTelegram(chatId, text, replyMarkup) {
+  if (!BOT_TOKEN || !chatId) return { ok: false, error: 'BOT_TOKEN/ADMIN_CHAT_ID missing' };
+  try {
+    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      chat_id: String(chatId),
+      text: text,
+      parse_mode: 'HTML',
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+    }, { timeout: 10000 });
+    return { ok: true };
+  } catch (err) {
+    console.error('[Bakong] Telegram send failed:', err.response?.data?.description || err.message);
+    return { ok: false, error: err.response?.data?.description || err.message };
+  }
+}
+
+// 1-Tap Admin Approve fallback alert (Telegram)
+async function notifyAdminPayment(tx, user, isReminder = false) {
+  if (!ADMIN_CHAT_ID) {
+    console.warn('[Bakong] ADMIN_CHAT_ID/TELEGRAM_ADMIN_ID not configured — admin payment alert skipped. Add ADMIN_CHAT_ID to .env');
+    return { ok: false, error: 'ADMIN_CHAT_ID missing' };
+  }
+  const title = isReminder ? '🔁 អ្នកប្រើប្រាស់ថាបានបង់ប្រាក់រួចហើយ (I HAVE PAID)' : '🔔 ការបង់ប្រាក់ KHQR ថ្មី រង់ចាំផ្ទៀងផ្ទាត់';
+  const text = `${title}\n━━━━━━━━━━━━━━━━\n` +
+    `👤 User: ${user?.first_name || 'User'} (ID: ${user?.id || 'N/A'})\n` +
+    `💰 ចំនួន៖ $${parseFloat(tx.amount).toFixed(2)}\n` +
+    `🧾 Bill No: <code>${tx.bill_no}</code>\n` +
+    `🆔 Tran ID: <code>${tx.tran_id}</code>\n` +
+    `📅 ${new Date(tx.created_at).toLocaleString()}\n\n` +
+    `👉 ចុចប៊ូតុងខាងក្រោមដើម្បីអនុម័តភ្លាមៗ៖`;
+  const replyMarkup = { inline_keyboard: [[
+    { text: `✅ អនុម័តការបង់ប្រាក់ ($${parseFloat(tx.amount).toFixed(2)})`, callback_data: `approve_pay_${tx.bill_no}` }
+  ]] };
+  return sendTelegram(ADMIN_CHAT_ID, text, replyMarkup);
+}
+
+// Mark a transaction as PAID, credit the user, and notify them (used by Admin 1-Tap approve)
+async function approvePaymentByBillNo(billNo) {
+  const db = readDB();
+  const tx = (db.bakong_transactions || []).find(t => t.bill_no === billNo || t.tran_id === billNo);
+  if (!tx) return { ok: false, reason: 'NOT_FOUND' };
+  if (tx.status === 'completed' || tx.status === 'PAID') {
+    return { ok: true, already: true, status: tx.status, amount: tx.amount, user_id: tx.user_id };
+  }
+  tx.status = 'PAID';
+  tx.completed_at = new Date().toISOString();
+  tx.approved_by = 'telegram_admin';
+  const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
+  if (userObj) {
+    if (tx.type === 'vip') {
+      userObj.is_vip = true;
+      const exp = new Date(); exp.setDate(exp.getDate() + 30);
+      userObj.vip_expires_at = exp.toISOString();
+    } else {
+      userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
+    }
+    try {
+      const { broadcastToUser } = require('../services/telegram_notifier');
+      if (userObj.telegram_id) {
+        const msg = tx.type === 'vip'
+          ? `✅ ការទូទាត់ VIP បានអនុម័តរួចរាល់!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
+          : `✅ បញ្ចូលប្រាក់ជោគជ័យ (បានអនុម័តដោយ Admin)!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែមទៅគណនីរបស់អ្នក!`;
+        await broadcastToUser(userObj.telegram_id, msg);
+      }
+    } catch (e) {}
+  }
+  recordBakongTransaction(db, tx, userObj);
+  writeDB(db);
+  console.log(`[Bakong] ✅ Approved by Admin 1-Tap: bill=${tx.bill_no} amount=$${tx.amount} user=${tx.user_id}`);
+  return { ok: true, status: 'PAID', amount: tx.amount, user_id: tx.user_id };
+}
 
 // CRC16 CCITT for KHQR EMV spec
 function crc16(str) {
@@ -131,6 +221,10 @@ router.post('/payment/bakong/create-qr', async (req, res) => {
     });
     writeDB(db);
 
+    // 1-Tap Admin Approve fallback alert (fire-and-forget, never blocks QR creation)
+    const txRecord = { tran_id: tranId, bill_no: billNo, amount: parseFloat(amountVal), created_at: new Date().toISOString() };
+    notifyAdminPayment(txRecord, user).catch(() => {});
+
     return res.json({ success: true, tran_id: tranId, amount: parseFloat(amountVal), qr_image: qrImageBase64 });
   } catch (error) {
     console.error('Bakong QR Error:', error.message);
@@ -148,40 +242,62 @@ router.get('/payment/bakong/check-status', async (req, res) => {
   if (!tx) return res.status(404).json({ error: 'Transaction not found' });
   if (tx.status !== 'pending') return res.json({ tran_id: tx.tran_id, status: tx.status, amount: tx.amount });
 
-  if (BAKONG_TOKEN && tx.qr_md5) {
-    try {
-      const cr = await axios.post(`${BAKONG_API_URL}/v1/check_transaction_by_md5`,
-        { md5: tx.qr_md5 },
-        { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 8000 }
-      );
-      if (cr.data?.responseCode === 0 && cr.data?.data) {
-        tx.status = 'completed'; tx.completed_at = new Date().toISOString();
-        const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
-        if (userObj) {
-          if (tx.type === 'topup') {
-            userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
-          } else if (tx.type === 'vip') {
-            userObj.is_vip = true;
-            const exp = new Date(); exp.setDate(exp.getDate() + 30);
-            userObj.vip_expires_at = exp.toISOString();
-          }
-          // Send Telegram confirmation
-          try {
-            const { broadcastToUser } = require('../services/telegram_notifier');
-            if (userObj.telegram_id) {
-              const msg = tx.type === 'vip'
-                ? `✅ ការទូទាត់ VIP ជោគជ័យ!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
-                : `✅ បញ្ចូលប្រាក់ជោគជ័យ!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែម!`;
-              await broadcastToUser(userObj.telegram_id, msg);
-            }
-          } catch(e) {}
-        }
-        writeDB(db);
-        return res.json({ tran_id: tx.tran_id, status: 'completed', amount: tx.amount });
-      }
-    } catch (e) { console.log('[Bakong Check]', e.message); }
+  if (!BAKONG_TOKEN) {
+    console.warn('[Bakong Check] BAKONG_TOKEN missing — cannot auto-verify, bill=' + tx.bill_no);
+    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason: 'MISSING_TOKEN' });
   }
-  return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount });
+  if (!tx.qr_md5) {
+    console.warn('[Bakong Check] tx.qr_md5 missing, bill=' + tx.bill_no);
+    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason: 'MISSING_MD5' });
+  }
+
+  try {
+    const cr = await axios.post(`${BAKONG_API_URL}/v1/check_transaction_by_md5`,
+      { md5: tx.qr_md5 },
+      { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 8000 }
+    );
+    console.log(`[Bakong Check] HTTP ${cr.status} responseCode=${cr.data?.responseCode} description=${cr.data?.description || 'n/a'} bill=${tx.bill_no}`);
+    if (cr.data?.responseCode === 0 && cr.data?.data) {
+      tx.status = 'completed'; tx.completed_at = new Date().toISOString();
+      const userObj = db.users.find(u => String(u.id) === String(tx.user_id));
+      if (userObj) {
+        if (tx.type === 'topup') {
+          userObj.wallet_balance = parseFloat((parseFloat(userObj.wallet_balance) || 0) + tx.amount);
+        } else if (tx.type === 'vip') {
+          userObj.is_vip = true;
+          const exp = new Date(); exp.setDate(exp.getDate() + 30);
+          userObj.vip_expires_at = exp.toISOString();
+        }
+        // Send Telegram confirmation
+        try {
+          const { broadcastToUser } = require('../services/telegram_notifier');
+          if (userObj.telegram_id) {
+            const msg = tx.type === 'vip'
+              ? `✅ ការទូទាត់ VIP ជោគជ័យ!\n👑 សិទ្ធិ VIP 30 ថ្ងៃ ត្រូវបានបើក!\n💰 $${tx.amount.toFixed(2)}`
+              : `✅ បញ្ចូលប្រាក់ជោគជ័យ!\n💰 $${tx.amount.toFixed(2)} ត្រូវបានបន្ថែម!`;
+            await broadcastToUser(userObj.telegram_id, msg);
+          }
+        } catch(e) {}
+      }
+      recordBakongTransaction(db, tx, userObj);
+      writeDB(db);
+      return res.json({ tran_id: tx.tran_id, status: 'completed', amount: tx.amount });
+    }
+    console.log(`[Bakong Check] Not paid yet (responseCode ${cr.data?.responseCode}) bill=${tx.bill_no}`);
+    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason: 'NOT_PAID_YET' });
+  } catch (e) {
+    const httpStatus = e.response?.status || 'NO_RESPONSE';
+    const body = typeof e.response?.data === 'object'
+      ? JSON.stringify(e.response.data).slice(0, 300)
+      : String(e.response?.data || e.message).slice(0, 300);
+    console.error(`[Bakong Check] FAILED HTTP ${httpStatus} bill=${tx.bill_no} body=${body}`);
+    let debugReason = 'BAKONG_API_ERROR';
+    if (httpStatus === 401) debugReason = 'HTTP_401_UNAUTHORIZED';
+    else if (httpStatus === 403) debugReason = 'HTTP_403_BLOCKED';
+    else if (httpStatus === 429) debugReason = 'HTTP_429_RATE_LIMITED';
+    else if (httpStatus === 'NO_RESPONSE') debugReason = 'NETWORK_ERROR';
+    return res.json({ tran_id: tx.tran_id, status: 'pending', amount: tx.amount, debugReason });
+  }
 });
 
 /**
@@ -203,11 +319,50 @@ router.post('/payment/bakong/webhook', async (req, res) => {
           userObj.vip_expires_at = exp.toISOString();
         }
       }
+      recordBakongTransaction(db, tx, userObj);
       writeDB(db);
     }
     res.json({ status: 'received' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/**
+ * POST /api/payment/bakong/i-have-paid
+ * User taps "ខ្ញុំបានបង់ប្រាក់រួចហើយ" → re-alert the Admin on Telegram
+ */
+router.post('/payment/bakong/i-have-paid', async (req, res) => {
+  try {
+    const { tran_id } = req.body || {};
+    const db = readDB();
+    const tx = (db.bakong_transactions || []).find(t => t.tran_id === tran_id);
+    if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    const user = getCurrentUser(req, db) || { id: 0, first_name: 'Guest' };
+    const r = await notifyAdminPayment(tx, user, true);
+    res.json({ success: true, admin_notified: r.ok, message: 'សំណើផ្ទៀងផ្ទាត់ត្រូវបានផ្ញើទៅ Admin រួចរាល់!' });
+  } catch (e) {
+    console.error('I-Have-Paid Error:', e.message);
+    res.status(500).json({ success: false, message: 'មានបញ្ហាក្នុងការផ្ញើសំណើ' });
+  }
+});
+
+/**
+ * POST /api/payment/bakong/admin-approve
+ * Internal approve endpoint: bot.js calls it first (localhost bypass even without SYNC_SECRET),
+ * then falls back to SYNC_SECRET auth for cross-container calls.
+ */
+router.post('/payment/bakong/admin-approve', async (req, res) => {
+  const remote = req.ip || req.socket?.remoteAddress || '';
+  const isLocal = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote);
+  const secretOk = SYNC_SECRET && req.get('x-sync-secret') === SYNC_SECRET;
+  if (!isLocal && !secretOk) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { bill_no } = req.body || {};
+  if (!bill_no) return res.status(400).json({ error: 'bill_no required' });
+  const result = await approvePaymentByBillNo(bill_no);
+  res.json(result);
+});
+
 module.exports = router;
+module.exports.approvePaymentByBillNo = approvePaymentByBillNo;
 

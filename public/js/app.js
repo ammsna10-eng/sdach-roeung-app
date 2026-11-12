@@ -651,6 +651,7 @@ const app = createApp({
         }
 
         showNotify(res.data.message || 'បានទិញជោគជ័យ! សូមរីករាយទស្សនា', 'success');
+        refreshHistory();
         playMovie(selectedMovie.value);
       } catch (e) {
         showNotify(e.response?.data?.message || 'មានបញ្ហាក្នុងការទិញ', 'error');
@@ -690,7 +691,10 @@ const app = createApp({
           paymentPollingInterval = setInterval(async () => {
             try {
               const checkRes = await axios.get('/api/payment/bakong/check-status?tran_id=' + res.data.tran_id);
-              if (checkRes.data.status === 'completed') {
+              if (checkRes.data.debugReason) {
+                console.log('[Payment] Bakong check debugReason:', checkRes.data.debugReason);
+              }
+              if (checkRes.data.status === 'completed' || checkRes.data.status === 'PAID') {
                 clearPaymentPolling();
                 qrModalData.value.paymentStatus = 'success';
                 try {
@@ -706,6 +710,7 @@ const app = createApp({
                   }
                 } catch(e) {}
                 showNotify('✅ ការទូទាត់ជោគជ័យ! គណនីបានធ្វើបច្ចុប្បន្នភាពហើយ!', 'success');
+                refreshHistory();
                 setTimeout(() => { isQrModalOpen.value = false; }, 3000);
               } else if (checkRes.data.status === 'failed') {
                 clearPaymentPolling();
@@ -723,6 +728,16 @@ const app = createApp({
         qrModalData.value.loading = false;
         qrModalData.value.paymentStatus = 'failed';
         qrModalData.value.paymentError = 'មានបញ្ហាក្នុងការភ្ជាប់ Server!';
+      }
+    };
+
+    const iHavePaid = async () => {
+      if (!qrModalData.value.tran_id) return;
+      try {
+        await axios.post('/api/payment/bakong/i-have-paid', { tran_id: qrModalData.value.tran_id });
+        showNotify('📤 បានផ្ញើសំណើផ្ទៀងផ្ទាត់ទៅ Admin រួចរាល់! សូមរង់ចាំបន្តិច...', 'info');
+      } catch (e) {
+        showNotify('មានបញ្ហាក្នុងការផ្ញើសំណើ!', 'error');
       }
     };
 
@@ -763,6 +778,67 @@ const app = createApp({
         paymentStatus: null
       };
       generateBakongQR(plan.price, 'vip');
+    };
+
+    // ==========================================
+    // 📜 Transaction History (ប្រវត្តិប្រតិបត្តិការ)
+    // ==========================================
+    const showHistoryModal = ref(false);
+    const historyList = ref([]);
+    const historyFilter = ref('all');
+    const loadingHistory = ref(false);
+
+    const openHistoryModal = async () => {
+      showHistoryModal.value = true;
+      loadingHistory.value = true;
+      historyFilter.value = 'all';
+      try {
+        const res = await axios.get('/api/transactions/history');
+        historyList.value = res.data.transactions || [];
+        if (res.data.wallet_balance !== undefined) {
+          user.value = {
+            ...user.value,
+            wallet_balance: parseFloat(res.data.wallet_balance || 0),
+            is_vip: Boolean(res.data.is_vip),
+            vip_expires_at: res.data.vip_expires_at || null
+          };
+        }
+      } catch (e) {
+        showNotify('មិនអាចទាញយកប្រវត្តិប្រតិបត្តិការបានទេ!', 'error');
+      } finally {
+        loadingHistory.value = false;
+      }
+    };
+
+    // Auto-refresh history + balance after any balance-changing event
+    const refreshHistory = async () => {
+      if (!showHistoryModal.value) return;
+      try {
+        const res = await axios.get('/api/transactions/history');
+        historyList.value = res.data.transactions || [];
+        if (res.data.wallet_balance !== undefined) {
+          user.value = { ...user.value, wallet_balance: parseFloat(res.data.wallet_balance || 0) };
+        }
+      } catch (e) {}
+    };
+
+    const filteredHistory = computed(() => {
+      if (historyFilter.value === 'in') {
+        return historyList.value.filter(t => parseFloat(t.amount) >= 0);
+      }
+      if (historyFilter.value === 'out') {
+        return historyList.value.filter(t => parseFloat(t.amount) < 0);
+      }
+      return historyList.value;
+    });
+
+    const formatHistoryTime = (iso) => {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      } catch (e) {
+        return '';
+      }
     };
 
     const nextSlide = () => {
@@ -869,7 +945,8 @@ const app = createApp({
       adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
       openTopup, openVip, nextSlide, prevSlide, onTouchStart, onTouchEnd,
       formatVipExpire, getVipRemainingDays,
-      isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR,
+      isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR, iHavePaid,
+      showHistoryModal, historyList, historyFilter, loadingHistory, filteredHistory, formatHistoryTime, openHistoryModal,
       isMobileDeviceRef, isVideoPlaying, showMobileCenterBtn, toggleMobileCenterPlay
     };
   }

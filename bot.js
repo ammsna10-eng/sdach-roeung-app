@@ -1,11 +1,15 @@
 const { Telegraf, Markup } = require('telegraf');
+const axios = require('axios');
 const dotenv = require('dotenv');
 const { readDB, writeDB } = require('./db');
+const bakongPayment = require('./routes/bakong_payment');
 
 dotenv.config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || 'https://sdach-roeung-app.onrender.com';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || process.env.TELEGRAM_ADMIN_ID || '';
+const SYNC_SECRET = process.env.SYNC_SECRET || '';
 
 if (!BOT_TOKEN) {
   console.log('⚠️  Notice: BOT_TOKEN is not set in .env file.');
@@ -78,6 +82,71 @@ bot.help((ctx) => {
       [Markup.button.webApp('🍿 បើកទស្សនារឿង ស្ដេចរឿង', WEBAPP_URL)]
     ])
   );
+});
+
+// 💳 Admin 1-Tap Payment Approve (callback_data: approve_pay_<billNo>)
+bot.action(/^approve_pay_(.+)$/, async (ctx) => {
+  const billNo = ctx.match[1];
+
+  // Only the configured Admin may approve
+  const adminIds = String(ADMIN_CHAT_ID).split(',').map(s => s.trim()).filter(Boolean);
+  if (!adminIds.length || !adminIds.includes(String(ctx.from?.id))) {
+    return ctx.answerCbQuery('⛔ មិនអនុញ្ញាត! មានតែ Admin ប៉ុណ្ណោះ។').catch(() => {});
+  }
+
+  // Render runs `node server.js & node bot.js` as two OS processes sharing data/db.json.
+  // Call the web service on localhost FIRST so server.js updates its own DB view and
+  // credits the user's live balance immediately; only write the file directly as fallback.
+  let result = { ok: false, reason: 'UNKNOWN' };
+  try {
+    const localPort = process.env.PORT || 10000;
+    const r = await axios.post(`http://127.0.0.1:${localPort}/api/payment/bakong/admin-approve`,
+      { bill_no: billNo },
+      { headers: { 'x-sync-secret': SYNC_SECRET }, timeout: 8000 });
+    if (r.data && r.data.ok) result = r.data;
+    else if (r.data && r.data.reason) result = r.data;
+  } catch (e) {
+    console.warn('[Bot Approve] Local HTTP approve failed, trying direct DB write:', e.message);
+  }
+
+  if (!result.ok || result.reason === 'NOT_FOUND') {
+    try {
+      result = await bakongPayment.approvePaymentByBillNo(billNo);
+    } catch (e) {
+      console.error('[Bot Approve] Direct DB approve failed:', e.message);
+    }
+  }
+
+  // Last resort: remote web service URL (separate containers)
+  if (!result.ok || result.reason === 'NOT_FOUND') {
+    try {
+      const r = await axios.post(`${WEBAPP_URL}/api/payment/bakong/admin-approve`,
+        { bill_no: billNo },
+        { headers: { 'x-sync-secret': SYNC_SECRET }, timeout: 10000 });
+      if (r.data && r.data.ok) result = r.data;
+    } catch (e) {
+      console.warn('[Bot Approve] Remote fallback failed:', e.message);
+    }
+  }
+
+  if (result.ok && result.already) {
+    await ctx.answerCbQuery('⚠️ បានអនុម័តរួចហើយ!').catch(() => {});
+    await ctx.editMessageText(
+      `⚠️ Transaction <code>${billNo}</code> ត្រូវបានអនុម័តរួចហើយ!`,
+      { parse_mode: 'HTML' }
+    ).catch(() => {});
+  } else if (result.ok) {
+    await ctx.answerCbQuery(`✅ អនុម័តរួចរាល់! +$${parseFloat(result.amount).toFixed(2)}`).catch(() => {});
+    await ctx.editMessageText(
+      `✅ <b>បានអនុម័តការបង់ប្រាក់រួចរាល់!</b>\n` +
+      `🧾 Bill No: <code>${billNo}</code>\n` +
+      `💰 បានបន្ថែម: $${parseFloat(result.amount).toFixed(2)}\n` +
+      `👤 User ID: ${result.user_id}`,
+      { parse_mode: 'HTML' }
+    ).catch(() => {});
+  } else {
+    await ctx.answerCbQuery('❌ រកមិនឃើញ Transaction!').catch(() => {});
+  }
 });
 
 // Resilient launch: during Render zero-downtime deploys, old and new containers
