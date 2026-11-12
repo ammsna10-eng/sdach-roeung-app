@@ -15,18 +15,81 @@ function paginate(arr = [], page = 1, perPage = 10) {
 }
 
 // User-movies (Purchases report)
+function toCambodiaDateStr(isoOrDate) {
+  const d = new Date(isoOrDate || Date.now());
+  if (isNaN(d.getTime())) return '';
+  return new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 router.get('/data/user-movies', (req, res) => {
   const db = readDB();
-  const purchases = (db.purchases || []).map(p => {
-    const movie = (db.movies || []).find(m => m.id === p.movie_id);
-    const user = (db.users || []).find(u => String(u.id) === String(p.user_id));
+  let purchases = (db.purchases || []).map(p => {
+    const movie = (db.movies || []).find(m => String(m.id) === String(p.movie_id));
+    const ep = p.episode_id ? (db.episodes || []).find(e => String(e.id) === String(p.episode_id)) : null;
+    const user = (db.users || []).find(u => String(u.id) === String(p.user_id) || String(u.telegram_id) === String(p.user_id));
+    const price = parseFloat(p.amount ?? p.price ?? 0) || 0;
+    const movieTitle = movie ? (movie.title_kh || movie.title_en || 'ភាពយន្ត') : `រឿង #${p.movie_id || ''}`;
+    const displayTitle = p.episode_id
+      ? `${movieTitle} — ភាគទី ${ep ? ep.episode_number : p.episode_id}${ep && ep.title ? ` (${ep.title})` : ''}`
+      : movieTitle;
+
     return {
       ...p,
-      movie_title: movie ? movie.title_kh : 'ភាពយន្ត',
-      user_name: user ? user.first_name : 'SnA'
+      item_type: p.episode_id ? 'episode' : 'movie',
+      display_title: displayTitle,
+      movie_title: movieTitle,
+      poster_path: (ep && ep.poster_path) || (movie && (movie.poster_path || movie.backdrop_path)) || '',
+      purchase_price: price,
+      user_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : `អតិថិជន #${p.user_id || ''}`,
+      user: user ? {
+        id: user.id,
+        telegram_id: user.telegram_id || user.id,
+        first_name: user.first_name || 'អតិថិជន',
+        last_name: user.last_name || '',
+        username: user.username || '',
+        photo_url: user.photo_url || ''
+      } : {
+        id: p.user_id,
+        telegram_id: p.user_id || 'N/A',
+        first_name: 'អតិថិជន',
+        last_name: '',
+        username: '',
+        photo_url: ''
+      }
     };
   });
-  const totalRev = purchases.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+  // Sort newest first
+  purchases.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+  // Filter by search, from_date, and to_date (Cambodia UTC+7)
+  const q = String(req.query.search || '').trim().toLowerCase();
+  const fromDate = String(req.query.from_date || '').trim();
+  const toDate = String(req.query.to_date || '').trim();
+
+  if (q) {
+    purchases = purchases.filter(p =>
+      (p.display_title || '').toLowerCase().includes(q) ||
+      (p.user?.first_name || '').toLowerCase().includes(q) ||
+      (p.user?.last_name || '').toLowerCase().includes(q) ||
+      (p.user?.username || '').toLowerCase().includes(q) ||
+      String(p.user?.telegram_id || '').toLowerCase().includes(q)
+    );
+  }
+  if (fromDate) {
+    purchases = purchases.filter(p => {
+      const dStr = toCambodiaDateStr(p.created_at);
+      return dStr && dStr >= fromDate;
+    });
+  }
+  if (toDate) {
+    purchases = purchases.filter(p => {
+      const dStr = toCambodiaDateStr(p.created_at);
+      return dStr && dStr <= toDate;
+    });
+  }
+
+  const totalRev = purchases.reduce((sum, p) => sum + (parseFloat(p.purchase_price) || 0), 0);
 
   res.json({
     purchases: paginate(purchases, req.query.page, 10),
