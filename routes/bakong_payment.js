@@ -4,6 +4,25 @@ const axios = require('axios');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const Tesseract = require('tesseract.js');
+
+// Shared Tesseract worker: initialized once, reused for every receipt (fast + no RAM spikes)
+let ocrWorkerPromise = null;
+async function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = Tesseract.createWorker('eng').then((worker) => {
+      // Undecodable images make the worker emit 'error' — swallow it so a bad
+      // receipt screenshot can never crash the whole Render process.
+      if (typeof worker.on === 'function') {
+        worker.on('error', (e) => console.error('[OCR] worker error:', e?.message || e));
+      }
+      return worker;
+    }).catch((e) => {
+      ocrWorkerPromise = null; // allow a fresh init on the next request
+      throw e;
+    });
+  }
+  return ocrWorkerPromise;
+}
 const { readDB, writeDB, getCurrentUser, recordTransaction } = require('../db');
 
 // Record a completed Bakong payment (topup or VIP) in the user's transaction history
@@ -425,13 +444,14 @@ router.post('/payment/bakong/verify-receipt', async (req, res) => {
     }
     const requiredPay = parseFloat(tx.payAmount || tx.amount) || 0;
 
-    // ── Step 1: Local OCR extraction (tesseract.js) + Manual Hash override ─
-    let ocrHash = '', fullHash = '', bankTrxId = '', ocrUSD = 0, ocrText = '';
+    // ── Step 1: Local OCR extraction (shared Tesseract worker) + Manual Hash override ─
+    let ocrHash = '', fullHash = '', bankTrxId = '', ftRef = '', ocrUSD = 0, ocrText = '', recipientMatch = false;
     if (receiptImageBase64) {
       const m = String(receiptImageBase64).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
       const imgBuffer = Buffer.from(m ? m[2] : String(receiptImageBase64), 'base64');
       try {
-        const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng');
+        const worker = await getOcrWorker();
+        const { data: { text } } = await worker.recognize(imgBuffer);
         ocrText = String(text || '');
         // 8-char Bakong Hash near "Hash:" label
         const h8 = ocrText.match(/hash\s*[:#-]*\s*([a-f0-9]{8})\b/i);
@@ -444,13 +464,25 @@ router.post('/payment/bakong/verify-receipt', async (req, res) => {
           const hAny = ocrText.match(/\b(?=[a-f0-9]*[a-f])(?=[a-f0-9]*[0-9])[a-f0-9]{8}\b/i);
           if (hAny) ocrHash = hAny[0];
         }
-        // bank Trx. ID (best-effort)
-        const trx = ocrText.match(/\b(?:trx|tx|trans(?:action)?)\s*[.#:-]?\s*id\s*[:#-]*\s*([a-z0-9][a-z0-9-]{5,})/i);
-        if (trx) bankTrxId = trx[1].trim();
-        // USD amount shown on the receipt
-        const usd = ocrText.match(/(?:\$|USD\s*)(\d+(?:\.\d{1,2})?)/i);
-        if (usd) ocrUSD = parseFloat(usd[1]) || 0;
-        console.log(`[Verify Receipt] OCR: hash=${ocrHash} h64=${fullHash ? 'yes' : 'no'} trxId=${bankTrxId} amount=$${ocrUSD} bill=${tx.bill_no}`);
+        // ABA transaction number near ប្រតិបត្តិការ / Trx / Transaction label, else first 10-14 digit token
+        const trxLabeled = ocrText.match(/(?:ប្រតិបត្តិការ|trx|trans(?:action)?)\s*[.:#-]?\s*(?:no\.?\s*)?([a-z0-9-]*\d[\d-]{9,})/i);
+        if (trxLabeled) bankTrxId = trxLabeled[1].replace(/[^a-zA-Z0-9-]/g, '');
+        if (!bankTrxId) {
+          const trxGen = ocrText.match(/\b(\d{10,14})\b/);
+          if (trxGen) bankTrxId = trxGen[1];
+        }
+        // ABA FT Reference (e.g. 100FT40351825305)
+        const ft = ocrText.match(/\b(100FT[A-Z0-9]{8,20})\b/i);
+        if (ft) ftRef = ft[1].toUpperCase();
+        // Recipient check: account 002111782 (spaces stripped) or CHAN VEASNA
+        const stripped = ocrText.replace(/[\s.-]/g, '');
+        recipientMatch = stripped.includes('002111782') || /chan\s*veasna/i.test(ocrText);
+        // Paid USD amount: "-0.50 USD" top line or "$0.50" / "0.50 USD" original amount — take the max
+        const usdMatches = [];
+        for (const um of ocrText.matchAll(/(?:-|\$|USD\s*)(\d+\.\d{2})/gi)) usdMatches.push(parseFloat(um[1]) || 0);
+        for (const um of ocrText.matchAll(/(\d+\.\d{2})\s*USD/gi)) usdMatches.push(parseFloat(um[1]) || 0);
+        if (usdMatches.length) ocrUSD = Math.max(...usdMatches);
+        console.log(`[Verify Receipt] OCR: hash=${ocrHash} h64=${fullHash ? 'yes' : 'no'} trxId=${bankTrxId} ftRef=${ftRef} recipient=${recipientMatch} amount=$${ocrUSD} bill=${tx.bill_no}`);
       } catch (ocrErr) {
         console.error('[Verify Receipt] OCR failed:', ocrErr.message);
       }
@@ -468,73 +500,101 @@ router.post('/payment/bakong/verify-receipt', async (req, res) => {
       return res.json({ ok: false, error: 'ចំនួនទឹកប្រាក់លើវិក្កយបត្រមិនគ្រប់តាមតម្លៃកញ្ចប់ទេ!' });
     }
 
-    // ── Step 2: Anti-replay / duplicate lock ──────────────────────────────
-    const hLow = cleanHash.toLowerCase();
-    const idLow = bankTrxId.toLowerCase();
-    const pools = [db.bakong_transactions || [], db.aba_transactions || []];
-    for (const pool of pools) {
-      for (const t of pool) {
-        if (t === tx) continue;
-        if (!['PAID', 'completed'].includes(t.status)) continue;
-        if ((t.bakongHash && String(t.bakongHash).toLowerCase() === hLow && hLow) ||
-            (t.bankTrxId && String(t.bankTrxId).toLowerCase() === idLow && idLow)) {
-          return res.json({ ok: false, error: 'វិក្កយបត្រនេះត្រូវបានប្រើប្រាស់រួចហើយ (Duplicate Receipt)!' });
+    // ── Path A: Bakong Hash present → Bakong Open API cross-verification (BAKONG_TOKEN) ──
+    if (cleanHash && (cleanHash.length === 8 || cleanHash.length === 64)) {
+      if (!BAKONG_TOKEN) {
+        return res.json({ ok: false, error: 'MISSING_BAKONG_TOKEN: ប្រព័ន្ធ Bakong មិនបានកំណត់រួចរាល់ទេ!' });
+      }
+      // Anti-replay / duplicate lock (hash)
+      const hLow = cleanHash.toLowerCase();
+      const poolsA = [db.bakong_transactions || [], db.aba_transactions || []];
+      for (const pool of poolsA) {
+        for (const t of pool) {
+          if (t === tx) continue;
+          if (!['PAID', 'completed'].includes(t.status)) continue;
+          if (t.bakongHash && String(t.bakongHash).toLowerCase() === hLow) {
+            return res.json({ ok: false, error: 'វិក្កយបត្រនេះត្រូវបានប្រើប្រាស់រួចហើយ (Duplicate Receipt)!' });
+          }
         }
       }
+      let verifyRes = null;
+      if (cleanHash.length === 8) {
+        verifyRes = await axios.post(`${BAKONG_API_BASE}/check_transaction_by_short_hash`,
+          { hash: cleanHash, amount: requiredPay, currency: 'USD' },
+          { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 10000 });
+      } else {
+        verifyRes = await axios.post(`${BAKONG_API_BASE}/check_transaction_by_hash`,
+          { hash: cleanHash },
+          { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 10000 });
+      }
+      console.log(`[Verify Receipt] Bakong HTTP ${verifyRes.status} responseCode=${verifyRes.data?.responseCode} message=${verifyRes.data?.responseMessage || 'n/a'} bill=${tx.bill_no}`);
+      if (verifyRes.data?.responseCode === 0 && verifyRes.data?.data) {
+        const items = Array.isArray(verifyRes.data.data) ? verifyRes.data.data : [verifyRes.data.data];
+        const usdPaid = items.reduce((sum, it) => {
+          const cur = String(it.currency ?? '').toUpperCase();
+          const isUSD = cur === 'USD' || cur === '840' || Number(it.currency) === 840;
+          return isUSD ? sum + (parseFloat(it.amount) || 0) : sum;
+        }, 0);
+        if (usdPaid + 0.001 >= requiredPay) {
+          tx.bakongHash = cleanHash;
+          tx.bankTrxId = bankTrxId;
+          tx.paid_amount = usdPaid;
+          tx.ocr_text = ocrText.slice(0, 500);
+          const approved = await approvePaymentByBillNo(tx.bill_no);
+          if (approved.ok) {
+            console.log(`[Verify Receipt] ✅ PAID via Bakong API (Path A) bill=${tx.bill_no} credited=$${approved.creditedAmount}`);
+            return res.json({ ok: true, status: 'PAID', creditedAmount: approved.creditedAmount });
+          }
+          return res.json({ ok: false, error: 'មានបញ្ហាក្នុងការអនុម័តការទូទាត់!' });
+        }
+        return res.json({ ok: false, error: 'ចំនួនទឹកប្រាក់ Bakong រកឃើញមិនគ្រប់តាមតម្លៃកញ្ចប់ទេ!' });
+      }
+      return res.json({ ok: false, error: 'ប្រព័ន្ធ Bakong មិនទាន់រកឃើញប្រតិបត្តិការនេះទេ សូមពិនិត្យរូបភាពវិក្កយបត្រ ឬសាកល្បងម្ដងទៀត!' });
     }
 
-    // ── Step 3: Bakong Open API cross-verification (BAKONG_TOKEN) ─────────
-    if (!BAKONG_TOKEN) {
-      return res.json({ ok: false, error: 'MISSING_BAKONG_TOKEN: ប្រព័ន្ធ Bakong មិនបានកំណត់រួចរាល់ទេ!' });
-    }
-    if (!cleanHash || (cleanHash.length !== 8 && cleanHash.length !== 64)) {
-      // ── Emergency Admin Fallback: blurry receipt, no valid hash, no manualHash
-      if (receiptImageBase64) {
-        try {
-          const m2 = String(receiptImageBase64).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
-          const imgBuffer = Buffer.from(m2 ? m2[2] : String(receiptImageBase64), 'base64');
-          const user = db.users.find(u => String(u.id) === String(tx.user_id));
-          const caption = `🆘 វិក្កយបត្រមិនច្បាស់ (OCR រក Hash មិនឃើញ)\n━━━━━━━━━━━━━━━━\n👤 User: ${user?.first_name || 'User'} (ID: ${tx.user_id})\n💰 តម្លៃត្រូវបង់៖ $${requiredPay.toFixed(2)}\n🧾 Bill No: <code>${tx.bill_no}</code>\n\n👉 សូមពិនិត្យរូបភាព រួចអនុម័ត៖`;
-          await sendReceiptToAdmin(imgBuffer, `receipt_${tx.bill_no}.jpg`, caption, { inline_keyboard: [[
-            { text: `✅ អនុម័តការបង់ប្រាក់ ($${requiredPay.toFixed(2)})`, callback_data: `approve_pay_${tx.bill_no}` }
-          ]] });
-        } catch (e) { console.error('[Verify Receipt] Admin fallback send failed:', e.message); }
-      }
-      return res.json({ ok: false, error: 'រូបភាពវិក្កយបត្រមិនច្បាស់លេខ Hash! សូមវាយលេខកូដ Hash ៨ ខ្ទង់ខាងក្រោម ឬរង់ចាំ Admin ពិនិត្យបន្តិច។' });
-    }
-    let verifyRes = null;
-    if (cleanHash.length === 8) {
-      verifyRes = await axios.post(`${BAKONG_API_BASE}/check_transaction_by_short_hash`,
-        { hash: cleanHash, amount: requiredPay, currency: 'USD' },
-        { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 10000 });
-    } else {
-      verifyRes = await axios.post(`${BAKONG_API_BASE}/check_transaction_by_hash`,
-        { hash: cleanHash },
-        { headers: { 'Authorization': `Bearer ${BAKONG_TOKEN}` }, timeout: 10000 });
-    }
-    console.log(`[Verify Receipt] Bakong HTTP ${verifyRes.status} responseCode=${verifyRes.data?.responseCode} message=${verifyRes.data?.responseMessage || 'n/a'} bill=${tx.bill_no}`);
-    if (verifyRes.data?.responseCode === 0 && verifyRes.data?.data) {
-      const items = Array.isArray(verifyRes.data.data) ? verifyRes.data.data : [verifyRes.data.data];
-      const usdPaid = items.reduce((sum, it) => {
-        const cur = String(it.currency ?? '').toUpperCase();
-        const isUSD = cur === 'USD' || cur === '840' || Number(it.currency) === 840;
-        return isUSD ? sum + (parseFloat(it.amount) || 0) : sum;
-      }, 0);
-      if (usdPaid + 0.001 >= requiredPay) {
-        tx.bakongHash = cleanHash;
-        tx.bankTrxId = bankTrxId;
-        tx.paid_amount = usdPaid;
-        tx.ocr_text = ocrText.slice(0, 500);
-        const approved = await approvePaymentByBillNo(tx.bill_no);
-        if (approved.ok) {
-          console.log(`[Verify Receipt] ✅ PAID via Bakong API bill=${tx.bill_no} credited=$${approved.creditedAmount}`);
-          return res.json({ ok: true, status: 'PAID', creditedAmount: approved.creditedAmount });
+    // ── Path B: ABA-to-ABA interbank KHQR receipt (no Bakong Hash, paid to 002 111 782 / CHAN VEASNA) ──
+    if (recipientMatch && ocrUSD + 0.001 >= requiredPay && (bankTrxId || ftRef)) {
+      // Anti-replay: this bankTrxId / ftRef must NEVER have been used on a prior PAID/completed tx
+      const refLow = String(bankTrxId || '').toLowerCase();
+      const ftLow = String(ftRef || '').toLowerCase();
+      const poolsB = [db.bakong_transactions || [], db.aba_transactions || []];
+      for (const pool of poolsB) {
+        for (const t of pool) {
+          if (t === tx) continue;
+          if (!['PAID', 'completed'].includes(t.status)) continue;
+          if ((bankTrxId && ((t.bankTrxId && String(t.bankTrxId).toLowerCase() === refLow) ||
+                             (t.bakongHash && String(t.bakongHash).toLowerCase() === refLow))) ||
+              (ftRef && t.ftRef && String(t.ftRef).toLowerCase() === ftLow)) {
+            return res.json({ ok: false, error: 'វិក្កយបត្រនេះត្រូវបានប្រើប្រាស់រួចហើយ (Duplicate Receipt)!' });
+          }
         }
-        return res.json({ ok: false, error: 'មានបញ្ហាក្នុងការអនុម័តការទូទាត់!' });
       }
-      return res.json({ ok: false, error: 'ចំនួនទឹកប្រាក់ Bakong រកឃើញមិនគ្រប់តាមតម្លៃកញ្ចប់ទេ!' });
+      tx.bankTrxId = bankTrxId;
+      tx.ftRef = ftRef;
+      tx.paid_amount = ocrUSD;
+      tx.recipient_verified = true;
+      tx.ocr_text = ocrText.slice(0, 500);
+      const approvedB = await approvePaymentByBillNo(tx.bill_no);
+      if (approvedB.ok) {
+        console.log(`[Verify Receipt] ✅ PAID via ABA receipt (Path B) bill=${tx.bill_no} trxId=${bankTrxId} ftRef=${ftRef} credited=$${approvedB.creditedAmount}`);
+        return res.json({ ok: true, status: 'PAID', creditedAmount: approvedB.creditedAmount });
+      }
+      return res.json({ ok: false, error: 'មានបញ្ហាក្នុងការអនុម័តការទូទាត់!' });
     }
-    return res.json({ ok: false, error: 'ប្រព័ន្ធ Bakong មិនទាន់រកឃើញប្រតិបត្តិការនេះទេ សូមពិនិត្យរូបភាពវិក្កយបត្រ ឬសាកល្បងម្ដងទៀត!' });
+
+    // ── Emergency Admin Fallback: neither Path A nor Path B could verify the image ──
+    if (receiptImageBase64) {
+      try {
+        const m2 = String(receiptImageBase64).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
+        const imgBuffer = Buffer.from(m2 ? m2[2] : String(receiptImageBase64), 'base64');
+        const user = db.users.find(u => String(u.id) === String(tx.user_id));
+        const caption = `🆘 វិក្កយបត្រមិនច្បាស់ (OCR ផ្ទៀងផ្ទាត់មិនបាន)\n━━━━━━━━━━━━━━━━\n👤 User: ${user?.first_name || 'User'} (ID: ${tx.user_id})\n💰 តម្លៃត្រូវបង់៖ $${requiredPay.toFixed(2)}\n🧾 Bill No: <code>${tx.bill_no}</code>\n\n👉 សូមពិនិត្យរូបភាព រួចអនុម័ត៖`;
+        await sendReceiptToAdmin(imgBuffer, `receipt_${tx.bill_no}.jpg`, caption, { inline_keyboard: [[
+          { text: `✅ អនុម័តការបង់ប្រាក់ ($${requiredPay.toFixed(2)})`, callback_data: `approve_pay_${tx.bill_no}` }
+        ]] });
+      } catch (e) { console.error('[Verify Receipt] Admin fallback send failed:', e.message); }
+    }
+    return res.json({ ok: false, error: 'រូបភាពវិក្កយបត្រមិនច្បាស់លេខ Hash! សូមវាយលេខកូដ Hash ៨ ខ្ទង់ខាងក្រោម ឬរង់ចាំ Admin ពិនិត្យបន្តិច។' });
   } catch (e) {
     const httpStatus = e.response?.status || 'NO_RESPONSE';
     console.error(`[Verify Receipt] FAILED HTTP ${httpStatus}:`, e.message);

@@ -704,12 +704,31 @@ const app = createApp({
       }
     };
 
-    // 📎 Receipt upload: thumbnail preview + ✅ Confirm Payment → AI OCR + Bakong API verification
+    // 📎 Receipt upload: downscale/compress on an offscreen canvas (max 900px wide, JPEG q=0.75)
+    // so uploads are ~80KB-150KB and never exceed payload limits or time out.
     const onReceiptFileChange = (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) { qrModalData.value.receiptPreview = null; return; }
       const reader = new FileReader();
-      reader.onload = () => { qrModalData.value.receiptPreview = reader.result; };
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const MAX_W = 900;
+            const scale = Math.min(1, MAX_W / img.width);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            qrModalData.value.receiptPreview = canvas.toDataURL('image/jpeg', 0.75);
+          } catch (err) {
+            qrModalData.value.receiptPreview = reader.result;
+          }
+        };
+        img.onerror = () => { qrModalData.value.receiptPreview = reader.result; };
+        img.src = reader.result;
+      };
       reader.readAsDataURL(file);
     };
 
@@ -758,8 +777,9 @@ const app = createApp({
         }
       } catch (e) {
         qrModalData.value.paymentStatus = 'awaiting_receipt';
-        qrModalData.value.paymentError = 'មានបញ្ហាក្នុងការភ្ជាប់ Server!';
-        showNotify('⚠️ មានបញ្ហាក្នុងការភ្ជាប់ Server!', 'error');
+        const serverError = e.response?.data?.error || e.response?.data?.message || e.message;
+        qrModalData.value.paymentError = serverError;
+        showNotify('⚠️ ' + serverError, 'error');
       }
     };
 
