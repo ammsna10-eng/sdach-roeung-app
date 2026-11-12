@@ -1,3 +1,5 @@
+// Force IPv4-first DNS: Node.js v24 tries IPv6 first on Render, causing ETIMEDOUT to api.telegram.org
+require('dns').setDefaultResultOrder('ipv4first');
 const { Telegraf, Markup } = require('telegraf');
 const axios = require('axios');
 const dotenv = require('dotenv');
@@ -150,7 +152,8 @@ bot.action(/^approve_pay_(.+)$/, async (ctx) => {
 });
 
 // Resilient launch: during Render zero-downtime deploys, old and new containers
-// briefly overlap and Telegram throws 409 Conflict — retry instead of crashing.
+// briefly overlap (409 Conflict) and transient network errors (ETIMEDOUT, ECONNRESET,
+// ENOTFOUND, FetchError) can occur — catch ALL of them and retry, never crash the process.
 const launchBotWithRetry = async (attempt = 1) => {
   // Clear any leftover webhook/polling state from the old instance
   await bot.telegram.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
@@ -158,15 +161,14 @@ const launchBotWithRetry = async (attempt = 1) => {
     await bot.launch();
     console.log('🤖 Telegram Bot is running successfully!');
   } catch (err) {
-    if (err && /409/.test(err.message || '')) {
-      console.warn(`Telegram 409 conflict (waiting for old instance to stop), retrying in 5s... (attempt ${attempt})`);
-      setTimeout(() => launchBotWithRetry(attempt + 1), 5000);
-    } else {
-      console.error('❌ Failed to launch Telegram Bot:', err.message);
-      throw err;
-    }
+    const msg = err?.message || String(err);
+    console.warn(`⚠️ Telegram launch failed (attempt ${attempt}): ${msg} — retrying in 5s...`);
+    setTimeout(launchBotWithRetry, 5000);
   }
 };
+
+// A transient Telegram network timeout must never take down the whole Render process
+process.on('unhandledRejection', (err) => console.error('⚠️ Unhandled Rejection in bot:', err?.message || err));
 
 launchBotWithRetry();
 
