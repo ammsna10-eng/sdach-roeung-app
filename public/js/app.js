@@ -249,6 +249,9 @@ const app = createApp({
       }
       clearMobileFullscreenClasses();
       fitMode.value = 'cover';
+      isVideoPlaying.value = false;
+      showMobileCenterBtn.value = false;
+      clearTimeout(mobileCenterBtnTimer);
       if (screen.orientation && screen.orientation.unlock) {
         try { screen.orientation.unlock(); } catch (e) {}
       }
@@ -298,6 +301,28 @@ const app = createApp({
     const fitMode = ref('cover');
 
     const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    const isMobileDeviceRef = ref(isMobileDevice());
+    const isVideoPlaying = ref(false);
+    const showMobileCenterBtn = ref(false);
+    let mobileCenterBtnTimer = null;
+
+    const revealMobileCenterBtn = () => {
+      if (!isMobileDeviceRef.value) return;
+      showMobileCenterBtn.value = true;
+      clearTimeout(mobileCenterBtnTimer);
+      mobileCenterBtnTimer = setTimeout(() => {
+        if (isVideoPlaying.value) {
+          showMobileCenterBtn.value = false;
+        }
+      }, 3000);
+    };
+
+    const toggleMobileCenterPlay = () => {
+      if (!plyrInstance) return;
+      plyrInstance.togglePlay();
+      revealMobileCenterBtn();
+    };
 
     const clearMobileFullscreenClasses = () => {
       const wrapper = document.getElementById('sdach-player-wrapper');
@@ -424,12 +449,45 @@ const app = createApp({
         if (!v) return;
 
         if (!plyrInstance) {
+          const isMobile = isMobileDevice();
+          const wrapperEl = document.getElementById('sdach-player-wrapper');
+          if (isMobile && wrapperEl) {
+            wrapperEl.classList.add('sdach-mobile-mode');
+          }
+
           plyrInstance = new Plyr(v, {
-            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'pip', 'fullscreen'],
+            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'pip', 'settings', 'fullscreen'],
+            settings: ['speed'],
+            speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
+            clickToPlay: !isMobile,
             fullscreen: { enabled: true, fallback: 'force', iosNative: false },
             seekTime: 5,
             keyboard: { focused: true, global: true },
             tooltips: { controls: false, seek: true }
+          });
+
+          // Sync the custom Mobile center Play/Pause button state
+          plyrInstance.on('play', () => {
+            isVideoPlaying.value = true;
+            revealMobileCenterBtn();
+          });
+          plyrInstance.on('pause', () => {
+            isVideoPlaying.value = false;
+            clearTimeout(mobileCenterBtnTimer);
+            showMobileCenterBtn.value = true;
+          });
+          plyrInstance.on('ended', () => {
+            isVideoPlaying.value = false;
+            clearTimeout(mobileCenterBtnTimer);
+            showMobileCenterBtn.value = true;
+          });
+          plyrInstance.on('controlsshown', () => {
+            if (isMobileDeviceRef.value) revealMobileCenterBtn();
+          });
+          plyrInstance.on('controlshidden', () => {
+            if (isMobileDeviceRef.value && isVideoPlaying.value) {
+              showMobileCenterBtn.value = false;
+            }
           });
 
           // Fullscreen state sync (safety net if Plyr's own fullscreen ever engages)
@@ -495,7 +553,6 @@ const app = createApp({
           };
 
           // Intercept double-click for desktop
-          const wrapperEl = document.getElementById('sdach-player-wrapper');
           if (wrapperEl) {
             wrapperEl.addEventListener('dblclick', (e) => {
               if (e.target.closest('.plyr__controls') || e.target.closest('button')) return;
@@ -526,6 +583,11 @@ const app = createApp({
                 lastTap = now;
                 tapX = touch.clientX;
                 tapY = touch.clientY;
+                // Single tap on mobile: reveal the timeline + center Pause button without pausing
+                revealMobileCenterBtn();
+                if (plyrInstance && typeof plyrInstance.toggleControls === 'function') {
+                  plyrInstance.toggleControls(true);
+                }
               }
             }, { passive: false });
           }
@@ -807,7 +869,8 @@ const app = createApp({
       adminTelegramLink, showNotify, openMovie, playMovie, playTrailer, buyMovie, closePlayer, resumePlayback, retryPlay, onVideoError,
       openTopup, openVip, nextSlide, prevSlide, onTouchStart, onTouchEnd,
       formatVipExpire, getVipRemainingDays,
-      isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR
+      isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR,
+      isMobileDeviceRef, isVideoPlaying, showMobileCenterBtn, toggleMobileCenterPlay
     };
   }
 });

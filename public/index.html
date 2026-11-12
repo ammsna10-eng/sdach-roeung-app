@@ -112,6 +112,18 @@
       padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
     }
 
+    /* 📱 Never clip Plyr's speed menu in mobile fullscreen */
+    #sdach-player-wrapper.sdach-force-landscape .plyr__controls,
+    #sdach-player-wrapper.sdach-edge-fullscreen .plyr__controls {
+      overflow: visible !important;
+    }
+
+    /* 📱 Hide Plyr's default center play button on mobile only —
+       our custom two-step center Play/Pause button handles mobile cleanly */
+    #sdach-player-wrapper.sdach-mobile-mode .plyr__control--overlaid {
+      display: none !important;
+    }
+
     /* Seek animation badges */
     .seek-badge-pop {
       opacity: 1 !important;
@@ -720,6 +732,23 @@
           <span class="text-xs font-black font-mono mt-0.5">+5 វិ</span>
         </div>
 
+        <!-- Mobile Two-Step Center Play/Pause Button -->
+        <button
+          v-if="isMobileDeviceRef"
+          id="sdach-mobile-center-btn"
+          @click.stop="toggleMobileCenterPlay"
+          type="button"
+          :class="showMobileCenterBtn || !isVideoPlaying ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'"
+          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-16 h-16 rounded-full bg-black/65 backdrop-blur-md border border-white/25 text-white flex items-center justify-center shadow-2xl transition-all duration-200 active:scale-90"
+          aria-label="Play or Pause">
+          <svg v-if="isVideoPlaying" class="w-8 h-8 fill-current" viewBox="0 0 24 24">
+            <path d="M6 5h4v14H6zm8 0h4v14h-4z"/>
+          </svg>
+          <svg v-else class="w-8 h-8 fill-current ml-1" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </button>
+
         <video 
           id="sdach-video-player" 
           playsinline 
@@ -810,7 +839,7 @@
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   
   <!-- App Script -->
-  <script src="/js/app.js?v=timeline_pip_fix_v2"></script>
+  <script src="/js/app.js?v=speed_mobile_pause_v3"></script>
 </body>
 </html>
 
