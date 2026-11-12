@@ -15,17 +15,98 @@ function paginate(arr = [], page = 1, perPage = 10) {
   };
 }
 
+function formatCambodiaDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const kh = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+  const dd = String(kh.getUTCDate()).padStart(2, '0');
+  const mm = String(kh.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = kh.getUTCFullYear();
+  const hh = String(kh.getUTCHours()).padStart(2, '0');
+  const min = String(kh.getUTCMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy}, ${hh}:${min}`;
+}
+
+function toCambodiaDateOnly(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 router.get('/data/users', (req, res) => {
   const db = readDB();
-  const users = db.users || [];
-  const vipCount = users.filter(u => u.is_vip).length;
-  const totalBalance = users.reduce((sum, u) => sum + parseFloat(u.wallet_balance || 0), 0);
+  const rawUsers = db.users || [];
   const purchases = db.purchases || [];
 
+  const q = String(req.query.search || '').trim().toLowerCase();
+  const vipFilter = String(req.query.vip_filter || 'all').trim().toLowerCase();
+  const fromDate = String(req.query.from_date || '').trim();
+  const toDate = String(req.query.to_date || '').trim();
+
+  // Enrich each user with wallet object, VIP formatted date, and purchase counts
+  let enriched = rawUsers.map(u => {
+    const bal = +(parseFloat(u.wallet_balance ?? u.wallet?.balance ?? 0) || 0).toFixed(2);
+    const userPurchases = purchases.filter(p =>
+      String(p.user_id) === String(u.id) ||
+      (u.telegram_id && String(p.user_id) === String(u.telegram_id))
+    );
+    const moviesCount = userPurchases.filter(p => !p.episode_id).length;
+    const episodesCount = userPurchases.filter(p => Boolean(p.episode_id)).length;
+
+    return {
+      ...u,
+      first_name: u.first_name || 'អតិថិជន',
+      last_name: u.last_name || '',
+      telegram_id: u.telegram_id || u.id,
+      wallet_balance: bal,
+      wallet: { balance: bal },
+      vip_plan_title: u.vip_plan_title || (u.is_vip ? 'VIP Member' : ''),
+      vip_expires_formatted: u.is_vip ? formatCambodiaDateTime(u.vip_expires_at) : '',
+      purchased_movies_count: moviesCount,
+      purchased_episodes_count: episodesCount
+    };
+  });
+
+  // Sort newest users first
+  enriched.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+  // Apply search, VIP status, and date filters
+  if (q) {
+    enriched = enriched.filter(u =>
+      (u.first_name || '').toLowerCase().includes(q) ||
+      (u.last_name || '').toLowerCase().includes(q) ||
+      (u.username || '').toLowerCase().includes(q) ||
+      String(u.id || '').toLowerCase().includes(q) ||
+      String(u.telegram_id || '').toLowerCase().includes(q)
+    );
+  }
+  if (vipFilter === 'vip') {
+    enriched = enriched.filter(u => Boolean(u.is_vip));
+  } else if (vipFilter === 'regular') {
+    enriched = enriched.filter(u => !u.is_vip);
+  }
+  if (fromDate) {
+    enriched = enriched.filter(u => {
+      const d = toCambodiaDateOnly(u.created_at);
+      return !d || d >= fromDate;
+    });
+  }
+  if (toDate) {
+    enriched = enriched.filter(u => {
+      const d = toCambodiaDateOnly(u.created_at);
+      return !d || d <= toDate;
+    });
+  }
+
+  const vipCount = rawUsers.filter(u => u.is_vip).length;
+  const totalBalance = rawUsers.reduce((sum, u) => sum + (parseFloat(u.wallet_balance ?? u.wallet?.balance ?? 0) || 0), 0);
+
   res.json({
-    users: paginate(users, req.query.page, 10),
+    users: paginate(enriched, req.query.page, 10),
     stats: {
-      total_users: users.length,
+      total_users: rawUsers.length,
       total_vip_users: vipCount,
       total_balance: totalBalance.toFixed(2),
       total_movies_bought: purchases.length
@@ -36,16 +117,35 @@ router.get('/data/users', (req, res) => {
 
 router.put('/data/users/:id', (req, res) => {
   const db = readDB();
-  const user = (db.users || []).find(u => String(u.id) === String(req.params.id));
+  const user = (db.users || []).find(u => String(u.id) === String(req.params.id) || String(u.telegram_id) === String(req.params.id));
   if (!user) return res.status(404).json({ message: 'User not found' });
 
-  if (req.body.balance !== undefined) user.wallet_balance = parseFloat(req.body.balance);
-  if (req.body.is_vip !== undefined) user.is_vip = Boolean(req.body.is_vip);
-  if (req.body.vip_action === 'add' && req.body.add_days) {
+  if (req.body.balance !== undefined) {
+    const newBal = +(parseFloat(req.body.balance) || 0).toFixed(2);
+    user.wallet_balance = newBal;
+    if (user.wallet && typeof user.wallet === 'object') {
+      user.wallet.balance = newBal;
+    }
+  }
+
+  if (req.body.is_vip !== undefined) {
+    user.is_vip = Boolean(req.body.is_vip);
+  }
+
+  const action = String(req.body.vip_action || 'keep').toLowerCase();
+  if (action === 'add' && req.body.add_days) {
     user.is_vip = true;
-    const now = new Date();
-    now.setDate(now.getDate() + parseInt(req.body.add_days));
-    user.vip_expires_at = now.toISOString();
+    const baseTime = Math.max(Date.now(), new Date(user.vip_expires_at || 0).getTime() || 0);
+    user.vip_expires_at = new Date(baseTime + parseInt(req.body.add_days, 10) * 24 * 60 * 60 * 1000).toISOString();
+    if (!user.vip_plan_title) user.vip_plan_title = 'VIP Member';
+  } else if (action === 'set' && req.body.vip_expires_at) {
+    user.is_vip = true;
+    user.vip_expires_at = new Date(req.body.vip_expires_at).toISOString();
+    if (!user.vip_plan_title) user.vip_plan_title = 'VIP Member';
+  } else if (['remove', 'revoke', 'cancel'].includes(action)) {
+    user.is_vip = false;
+    user.vip_expires_at = null;
+    user.vip_plan_title = '';
   }
 
   writeDB(db);
