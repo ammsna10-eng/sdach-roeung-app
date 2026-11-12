@@ -108,23 +108,142 @@ router.delete('/data/trash/movies/:id/force', (req, res) => res.json({ message: 
 // Super report
 router.get('/data/super-report', (req, res) => {
   const db = readDB();
-  const purchases = db.purchases || [];
-  const totalRev = purchases.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+  const admins = db.admins || [];
+  const movies = db.movies || [];
+  const episodes = db.episodes || [];
+
+  const q = String(req.query.search || '').trim().toLowerCase();
+  const uploaderFilter = String(req.query.uploader_id || 'all').trim();
+  const fromDate = String(req.query.from_date || '').trim();
+  const toDate = String(req.query.to_date || '').trim();
+
+  const toDateStr = (iso) => {
+    const d = new Date(iso || Date.now());
+    if (isNaN(d.getTime())) return '';
+    return new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  };
+
+  // Enrich all purchases with movie, episode, and uploader info
+  let enriched = (db.purchases || []).map(p => {
+    const movie = movies.find(m => String(m.id) === String(p.movie_id));
+    const ep = p.episode_id ? episodes.find(e => String(e.id) === String(p.episode_id)) : null;
+
+    const rawUploaderId = movie ? (movie.uploader_id ?? movie.admin_id ?? movie.created_by ?? null) : null;
+    const uploader = rawUploaderId !== null
+      ? admins.find(a => String(a.id) === String(rawUploaderId))
+      : null;
+
+    const uploaderKey = uploader
+      ? String(uploader.id)
+      : (rawUploaderId !== null ? String(rawUploaderId) : 'super_admin');
+    const uploaderName = uploader
+      ? (uploader.name || uploader.username || uploader.email || `Uploader #${uploader.id}`)
+      : (rawUploaderId !== null ? `Uploader #${rawUploaderId}` : 'Super Admin');
+
+    const baseTitle = movie ? (movie.title_kh || movie.title_en || 'ភាពយន្ត') : `រឿង #${p.movie_id || ''}`;
+    const displayTitle = p.episode_id
+      ? `${baseTitle} — ភាគទី ${ep ? ep.episode_number : p.episode_id}`
+      : baseTitle;
+
+    const price = parseFloat(p.amount ?? p.price ?? 0) || 0;
+
+    return {
+      ...p,
+      movie_id: p.movie_id,
+      movie_title: displayTitle,
+      poster_path: (ep && ep.poster_path) || (movie && (movie.poster_path || movie.backdrop_path)) || '',
+      uploader_id: uploaderKey,
+      uploader_name: uploaderName,
+      movie_price: price
+    };
+  });
+
+  // Apply date range filter first so uploader commission tiers reflect the selected period
+  if (fromDate) {
+    enriched = enriched.filter(r => {
+      const d = toDateStr(r.created_at);
+      return d && d >= fromDate;
+    });
+  }
+  if (toDate) {
+    enriched = enriched.filter(r => {
+      const d = toDateStr(r.created_at);
+      return d && d <= toDate;
+    });
+  }
+
+  // Calculate total sales per uploader to determine tier rate (Level 1: 15%, Level 2 >= $50: 20%, Level 3 >= $200: 30%)
+  const salesByUploader = {};
+  for (const r of enriched) {
+    salesByUploader[r.uploader_id] = (salesByUploader[r.uploader_id] || 0) + r.movie_price;
+  }
+
+  enriched = enriched.map(r => {
+    const uSales = salesByUploader[r.uploader_id] || 0;
+    const rate = uSales >= 200 ? 30 : (uSales >= 50 ? 20 : 15);
+    const earned = +(r.movie_price * (rate / 100)).toFixed(4);
+    return {
+      ...r,
+      commission_rate: rate,
+      commission_earned: earned
+    };
+  });
+
+  // Filter by selected uploader
+  if (uploaderFilter && uploaderFilter !== 'all') {
+    enriched = enriched.filter(r => String(r.uploader_id) === uploaderFilter);
+  }
+
+  // Filter by search keyword
+  if (q) {
+    enriched = enriched.filter(r =>
+      (r.movie_title || '').toLowerCase().includes(q) ||
+      (r.uploader_name || '').toLowerCase().includes(q) ||
+      String(r.movie_id || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Sort newest first
+  enriched.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+  // Count uploaded movies matching filters
+  let uploadedMovies = movies;
+  if (uploaderFilter && uploaderFilter !== 'all') {
+    uploadedMovies = uploadedMovies.filter(m => {
+      const uid = m.uploader_id ?? m.admin_id ?? m.created_by ?? 'super_admin';
+      return String(uid) === uploaderFilter;
+    });
+  }
+  if (fromDate) {
+    uploadedMovies = uploadedMovies.filter(m => !m.created_at || toDateStr(m.created_at) >= fromDate);
+  }
+  if (toDate) {
+    uploadedMovies = uploadedMovies.filter(m => !m.created_at || toDateStr(m.created_at) <= toDate);
+  }
+
+  const totalSales = enriched.reduce((sum, r) => sum + r.movie_price, 0);
+  const totalCommission = enriched.reduce((sum, r) => sum + r.commission_earned, 0);
+  const netProfit = Math.max(0, totalSales - totalCommission);
+  const activeRate = totalSales >= 200 ? 30 : (totalSales >= 50 ? 20 : 15);
+  const activeLevel = totalSales >= 200 ? 'Level 3' : (totalSales >= 50 ? 'Level 2' : 'Level 1');
 
   res.json({
     kpis: {
-      total_sales: totalRev.toFixed(2),
-      total_commission: (totalRev * 0.2).toFixed(2),
-      net_profit: (totalRev * 0.8).toFixed(2),
-      total_movies_sold: purchases.length,
-      total_uploaded: (db.movies || []).length,
-      current_level: "Level 1",
-      current_rate: "20%",
-      monthly_total_sales: totalRev.toFixed(2),
-      next_target: "500.00"
+      total_sales: totalSales.toFixed(2),
+      total_commission: totalCommission.toFixed(2),
+      net_profit: netProfit.toFixed(3),
+      total_movies_sold: enriched.length,
+      total_uploaded: uploadedMovies.length,
+      current_level: activeLevel,
+      current_rate: activeRate + '%',
+      monthly_total_sales: totalSales.toFixed(2),
+      next_target: totalSales >= 200 ? 'Max' : (totalSales >= 50 ? '200.00' : '50.00')
     },
-    records: paginate(purchases, req.query.page, 10),
-    uploaders: db.admins || []
+    records: paginate(enriched, req.query.page, 15),
+    uploaders: admins.map(a => ({
+      id: a.id,
+      name: a.name || a.username || a.email || `Uploader #${a.id}`
+    }))
   });
 });
 
