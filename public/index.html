@@ -150,6 +150,16 @@
 
         <!-- Right Side: Contact Support + Wallet + VIP -->
         <div class="flex items-center gap-2">
+          <!-- 🟢 Live Online / Watching Users Badge -->
+          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 font-bold text-[11px] shadow-md select-none" title="អ្នកកំពុងទស្សនាផ្ទាល់">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+            <span class="font-mono">{{ onlineCount }}</span>
+            <span class="hidden md:inline">កំពុងទស្សនា</span>
+          </div>
+
           <!-- Contact Admin Support Button (Header) -->
           <a :href="adminTelegramLink" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/20 hover:bg-blue-500/35 border border-blue-400/40 text-blue-300 font-bold text-xs shadow-md transition-all active:scale-95 group">
             <span class="text-sm">💬</span>

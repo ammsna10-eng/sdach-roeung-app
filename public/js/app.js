@@ -980,6 +980,38 @@ const app = createApp({
       }
     });
 
+    // ==========================================
+    // 🟢 Real-time Online / Watching Users Counter
+    // ==========================================
+    const onlineCount = ref(1);
+    const getVisitorKey = () => {
+      if (user.value && user.value.id && Number(user.value.id) !== 924441299) {
+        return 'u_' + user.value.id;
+      }
+      let vid = localStorage.getItem('sr_visitor_id');
+      if (!vid) {
+        vid = 'v_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('sr_visitor_id', vid);
+      }
+      return vid;
+    };
+    const sendOnlineHeartbeat = async () => {
+      try {
+        const res = await axios.post('/api/online/ping', { visitor_id: getVisitorKey() });
+        if (res.data && typeof res.data.online === 'number') {
+          onlineCount.value = Math.max(1, res.data.online);
+        }
+      } catch (e) {}
+    };
+    sendOnlineHeartbeat();
+    setInterval(sendOnlineHeartbeat, 20000);
+    window.addEventListener('beforeunload', () => {
+      try {
+        const blob = new Blob([JSON.stringify({ visitor_id: getVisitorKey() })], { type: 'application/json' });
+        navigator.sendBeacon('/api/online/leave', blob);
+      } catch (e) {}
+    });
+
     return {
       activeTab, user, movies, sliderMovies, popularMovies, dubbedMovies, seriesMovies,
       currentSlide, searchQuery, selectedGenre, selectedLanguage, genres, filteredMovies,
@@ -989,7 +1021,7 @@ const app = createApp({
       openTopup, openVip, nextSlide, prevSlide, onTouchStart, onTouchEnd,
       formatVipExpire, getVipRemainingDays,
       isFullscreenLandscape, isMobileFullscreen, fitMode, toggleFitMode, toggleFullscreen, clearPaymentPolling, downloadQR, verifyReceipt, onReceiptFileChange,
-      showHistoryModal, historyList, historyFilter, loadingHistory, filteredHistory, formatHistoryTime, openHistoryModal,
+      showHistoryModal, historyList, historyFilter, loadingHistory, filteredHistory, formatHistoryTime, openHistoryModal, onlineCount,
       isMobileDeviceRef, isVideoPlaying, showMobileCenterBtn, toggleMobileCenterPlay
     };
   }

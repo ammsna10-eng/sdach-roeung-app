@@ -62,6 +62,35 @@ app.get('/api/export-db', (req, res) => {
 // Admin API routes
 app.use('/admin', require('./routes/admin'));
 
+// Real-time Online / Watching Visitors Counter (in-memory, fast & zero DB load)
+const activeMiniAppVisitors = new Map();
+function pruneOfflineVisitors() {
+  const cutoff = Date.now() - 45000; // 45s timeout
+  for (const [vid, ts] of activeMiniAppVisitors.entries()) {
+    if (ts < cutoff) activeMiniAppVisitors.delete(vid);
+  }
+}
+
+app.post('/api/online/ping', (req, res) => {
+  pruneOfflineVisitors();
+  const rawId = req.body?.visitor_id || req.query?.visitor_id || req.ip || 'guest';
+  const visitorId = String(rawId).slice(0, 80);
+  activeMiniAppVisitors.set(visitorId, Date.now());
+  res.json({ online: Math.max(1, activeMiniAppVisitors.size) });
+});
+
+app.post('/api/online/leave', (req, res) => {
+  const rawId = req.body?.visitor_id || req.query?.visitor_id;
+  if (rawId) activeMiniAppVisitors.delete(String(rawId).slice(0, 80));
+  pruneOfflineVisitors();
+  res.json({ online: Math.max(1, activeMiniAppVisitors.size) });
+});
+
+app.get('/api/online', (req, res) => {
+  pruneOfflineVisitors();
+  res.json({ online: Math.max(1, activeMiniAppVisitors.size) });
+});
+
 // Admin Panel Web App (Vue bundle)
 app.use((req, res, next) => {
   if (req.method === 'GET' && (req.path.startsWith('/admin') || req.path.startsWith('/super_admin'))) {
@@ -88,7 +117,7 @@ require('./db').initCloudDB().finally(() => {
   console.log(`📱 Mini App Preview: http://localhost:${PORT}/`);
   console.log(`⚙️  Admin Dashboard: http://localhost:${PORT}/admin/login`);
   console.log(`🔑 Admin Credentials:`);
-  console.log(`   Email: admin@phsarroeung.com`);
+  console.log(`   Email: admin@sdachroeung.com`);
   console.log(`   Password: admin123`);
   console.log(`===============================================`);
 });
