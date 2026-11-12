@@ -23,23 +23,56 @@ function crc16(str) {
   return ((crc & 0xFFFF).toString(16).toUpperCase()).padStart(4, '0');
 }
 
-// Build KHQR string manually (EMV QR Code Spec - works with all Cambodian banking apps)
-function buildKHQRString(amount, billNo) {
+// Sanitize to strict ASCII alphanumeric + spaces only (ABA enforces EMVCo/NBC rules)
+const sanitizeASCII = (value, maxLen = 25) => {
+  const cleaned = String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.slice(0, maxLen);
+};
+
+// EMVCo TLV: length must be the BYTE length of the value
+const tlv = (tag, value) => {
+  const v = String(value);
+  return tag + String(Buffer.byteLength(v, 'utf8')).padStart(2, '0') + v;
+};
+
+// Build KHQR string manually (EMV QR Code Spec - strict Dynamic KHQR rules for ABA/ACLEDA/all banks)
+function buildKHQRString(amount, billNo, currency = 'USD') {
   const acct = BAKONG_ACCOUNT_ID;
-  const name = BAKONG_MERCHANT_NAME;
-  const city = BAKONG_MERCHANT_CITY;
-  const amtStr = parseFloat(amount).toFixed(2);
+  const name = sanitizeASCII(BAKONG_MERCHANT_NAME) || 'MERCHANT';
+  const city = sanitizeASCII(BAKONG_MERCHANT_CITY) || 'PHNOM PENH';
+  const bill = sanitizeASCII(billNo);
 
-  const bakongTag = '0010A000000440' + '0112' + acct;
-  const merchantAcct = '29' + String(bakongTag.length).padStart(2, '0') + bakongTag;
-  const billField = '01' + String(billNo.length).padStart(2, '0') + billNo;
-  const addData = '62' + String(billField.length).padStart(2, '0') + billField;
-  const nameField = '59' + String(name.length).padStart(2, '0') + name;
-  const cityField = '60' + String(city.length).padStart(2, '0') + city;
-  const amtField = '54' + String(amtStr.length).padStart(2, '0') + amtStr;
+  const isKHR = String(currency) === 'KHR' || String(currency) === '116';
+  const currencyCode = isKHR ? '116' : '840';
+  // KHR: NO decimal places. USD: max 2 decimal places.
+  const amtStr = isKHR
+    ? String(Math.round(parseFloat(amount) || 0))
+    : (parseFloat(amount) || 0).toFixed(2);
 
-  const body = '000201' + merchantAcct + '52040000' + '5303840' + amtField +
-    '5802KH' + nameField + cityField + addData + '6304';
+  // Tag 99 Bakong Timestamp: creation + expiration (+15 min), 13-digit ms
+  const created = Date.now();
+  const expires = created + (15 * 60 * 1000);
+  const tsSub = tlv('00', String(created)) + tlv('01', String(expires));
+
+  const bakongTag = tlv('00', acct.trim());
+
+  const body =
+    tlv('00', '01') +                                        // Payload Format Indicator
+    tlv('01', '12') +                                        // Point of Initiation: 12 = DYNAMIC (Tag 54 present)
+    tlv('29', bakongTag) +                                   // Merchant Account Info (Bakong)
+    tlv('52', '5999') +                                      // MCC: NBC Bakong standard for individual accounts
+    tlv('53', currencyCode) +                                // Currency: 840 USD / 116 KHR
+    (amtStr ? tlv('54', amtStr) : '') +                      // Transaction Amount
+    tlv('58', 'KH') +                                        // Country Code
+    tlv('59', name) +                                        // Merchant Name (ASCII, <=25)
+    tlv('60', city) +                                        // Merchant City (ASCII, <=25)
+    tlv('62', tlv('01', bill)) +                             // Additional Data / Bill Number
+    tlv('99', tsSub) +                                       // Bakong Timestamp (00 created / 01 expires)
+    '6304';                                                  // CRC placeholder
   return body + crc16(body);
 }
 
