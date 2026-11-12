@@ -39,33 +39,33 @@ const tlv = (tag, value) => {
   return tag + String(Buffer.byteLength(v, 'utf8')).padStart(2, '0') + v;
 };
 
-// Build KHQR string manually (EMV QR Code Spec - strict Dynamic KHQR rules for ABA/ACLEDA/all banks)
-function buildKHQRString(amount, billNo, currency = 'USD') {
-  const acct = BAKONG_ACCOUNT_ID;
-  const name = sanitizeASCII(BAKONG_MERCHANT_NAME) || 'MERCHANT';
+// Build KHQR string manually (EMV QR Code Spec - strict Dynamic KHQR, USD only,
+// official ABA Bank Individual Account TLV structure so ABA Mobile + ACLEDA both recognize it)
+function buildKHQRString(amount, billNo) {
+  const name = sanitizeASCII(BAKONG_MERCHANT_NAME) || 'VEASNA CHAN';
   const city = sanitizeASCII(BAKONG_MERCHANT_CITY) || 'PHNOM PENH';
   const bill = sanitizeASCII(billNo);
 
-  const isKHR = String(currency) === 'KHR' || String(currency) === '116';
-  const currencyCode = isKHR ? '116' : '840';
-  // KHR: NO decimal places. USD: max 2 decimal places.
-  const amtStr = isKHR
-    ? String(Math.round(parseFloat(amount) || 0))
-    : (parseFloat(amount) || 0).toFixed(2);
+  // USD (840) ONLY: max 2 decimal places
+  const amtStr = (parseFloat(amount) || 0).toFixed(2);
 
   // Tag 99 Bakong Timestamp: creation + expiration (+15 min), 13-digit ms
   const created = Date.now();
   const expires = created + (15 * 60 * 1000);
   const tsSub = tlv('00', String(created)) + tlv('01', String(expires));
 
-  const bakongTag = tlv('00', acct.trim());
+  // Official ABA Bank Individual Account USD structure for Tag 29
+  const bakongTag =
+    tlv('00', 'abaakhppxxx@abaa') +
+    tlv('01', '002111782') +
+    tlv('02', 'ABA Bank');
 
   const body =
     tlv('00', '01') +                                        // Payload Format Indicator
     tlv('01', '12') +                                        // Point of Initiation: 12 = DYNAMIC (Tag 54 present)
-    tlv('29', bakongTag) +                                   // Merchant Account Info (Bakong)
+    tlv('29', bakongTag) +                                   // Merchant Account Info (ABA USD)
     tlv('52', '5999') +                                      // MCC: NBC Bakong standard for individual accounts
-    tlv('53', currencyCode) +                                // Currency: 840 USD / 116 KHR
+    tlv('53', '840') +                                       // Currency: USD only
     (amtStr ? tlv('54', amtStr) : '') +                      // Transaction Amount
     tlv('58', 'KH') +                                        // Country Code
     tlv('59', name) +                                        // Merchant Name (ASCII, <=25)
