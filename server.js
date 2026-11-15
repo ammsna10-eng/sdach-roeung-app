@@ -14,6 +14,10 @@ process.on('uncaughtException', (err) => console.error('⚠️ Uncaught Exceptio
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Behind Render's reverse proxy: make req.ip the real client IP
+// (required for signed stream URL IP-binding & sharing detection)
+app.set('trust proxy', true);
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '15mb' }));
@@ -61,6 +65,9 @@ app.get('/api/export-db', (req, res) => {
 
 // Admin API routes
 app.use('/admin', require('./routes/admin'));
+// Super Admin API routes (security-monitor, revoke-session, etc.)
+// Mounted BEFORE the admin.html catch-all so API requests resolve here.
+app.use('/super_admin', require('./routes/admin'));
 
 // Real-time Online / Watching Visitors Counter (in-memory, fast & zero DB load)
 const activeMiniAppVisitors = new Map();

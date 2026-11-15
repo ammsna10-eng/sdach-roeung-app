@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const { readDB, writeDB } = require('../db');
 const { broadcastNewMovie } = require('../services/telegram_notifier');
+const {
+  logSecurityEvent,
+  clientIp,
+  getActiveWatchers,
+  dropWatchersForUser
+} = require('../services/security');
+
+// Guard: the new security endpoints require a super admin session token
+// ('admin_token_<id>' issued by /admin/login for an admin with super_admin role)
+function isSuperAdminReq(req, db) {
+  const token = String(req.get('x-admin-token') || '');
+  const m = /^admin_token_(\d+)$/.exec(token);
+  if (!m) return false;
+  const admin = (db.admins || []).find(a => String(a.id) === m[1]);
+  return Boolean(admin && (admin.role === 'super_admin' || !admin.role));
+}
 
 function paginate(arr = [], page = 1, perPage = 10) {
   const p = Math.max(1, parseInt(page) || 1);
@@ -35,6 +51,13 @@ function toCambodiaDateOnly(iso) {
   return new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+// Never expose internal session credentials through admin data APIs
+function stripSessionCreds(u) {
+  if (!u || typeof u !== 'object') return u;
+  const { session_token, session_expires_at, ...safe } = u;
+  return safe;
+}
+
 router.get('/data/users', (req, res) => {
   const db = readDB();
   const rawUsers = db.users || [];
@@ -46,7 +69,8 @@ router.get('/data/users', (req, res) => {
   const toDate = String(req.query.to_date || '').trim();
 
   // Enrich each user with wallet object, VIP formatted date, and purchase counts
-  let enriched = rawUsers.map(u => {
+  let enriched = rawUsers.map(raw => {
+    const u = stripSessionCreds(raw);
     const bal = +(parseFloat(u.wallet_balance ?? u.wallet?.balance ?? 0) || 0).toFixed(2);
     const userPurchases = purchases.filter(p =>
       String(p.user_id) === String(u.id) ||
@@ -149,7 +173,7 @@ router.put('/data/users/:id', (req, res) => {
   }
 
   writeDB(db);
-  res.json({ message: 'User updated', user });
+  res.json({ message: 'User updated', user: stripSessionCreds(user) });
 });
 
 // Helper: Normalize movie genres into clean [{ id, name }] objects
@@ -355,7 +379,10 @@ router.get('/data/topups', (req, res) => {
 
   // Attach user details
   let list = merged.map(item => {
-    const user = (db.users || []).find(u => String(u.id) === String(item.user_id) || String(u.telegram_id) === String(item.user_id));
+    const raw = (db.users || []).find(u => String(u.id) === String(item.user_id) || String(u.telegram_id) === String(item.user_id));
+    const user = raw ? {
+      ...stripSessionCreds(raw),
+    } : null;
     return {
       ...item,
       user: user ? {
@@ -489,6 +516,54 @@ router.put('/data/topups/:id', (req, res) => {
 
   writeDB(db);
   res.json({ message: 'Topup updated', topup: record });
+});
+
+// ============================================================
+// SUPER ADMIN — LIVE WATCHING & SECURITY MONITOR
+// Mounted at both /admin/api/* and /super_admin/api/*
+// ============================================================
+router.get('/api/security-monitor', (req, res) => {
+  const db = readDB();
+  if (!isSuperAdminReq(req, db)) {
+    return res.status(403).json({ message: 'Forbidden: super admin only' });
+  }
+  res.json({
+    active_watchers: getActiveWatchers(),
+    security_logs: (db.security_logs || []).slice(-200).reverse(),
+    server_time: new Date().toISOString()
+  });
+});
+
+router.post('/api/users/:id/revoke-session', (req, res) => {
+  const db = readDB();
+  if (!isSuperAdminReq(req, db)) {
+    return res.status(403).json({ message: 'Forbidden: super admin only' });
+  }
+  const user = (db.users || []).find(u =>
+    String(u.id) === String(req.params.id) || String(u.telegram_id) === String(req.params.id)
+  );
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  // Kick: invalidate the cryptographic session & revoke VIP instantly
+  user.session_token = null;
+  user.session_expires_at = null;
+  user.is_vip = false;
+  user.vip_expires_at = null;
+  dropWatchersForUser(user.id);
+
+  logSecurityEvent(db, 'SESSION_REVOKED', {
+    user_id: user.id,
+    user_name: user.first_name || '',
+    ip: clientIp(req),
+    details: 'Super admin revoked session & VIP access (kick/ban suspicious account)'
+  });
+  writeDB(db);
+
+  res.json({
+    message: 'បានលុបសេសិន និងដកសិទ្ធិ VIP របស់អ្នកប្រើប្រាស់ជោគជ័យ!',
+    user_id: user.id,
+    revoked: true
+  });
 });
 
 module.exports = router;

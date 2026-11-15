@@ -15,6 +15,8 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <!-- Dev/Browser Testing Polyfill for Telegram WebApp -->
+    <!-- NOTE: no mock initData is injected anymore; unsigned initData is
+         rejected server-side (HMAC verification) unless ALLOW_DEV_LOGIN=true -->
     <script>
       (function() {
         if (!window.Telegram) window.Telegram = {};
@@ -22,16 +24,9 @@
           var isRouteAdmin = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/super_admin');
           if (!isRouteAdmin) {
             window.Telegram.WebApp = {
-              initData: "user=%7B%22id%22%3A924441299%2C%22first_name%22%3A%22SnA%22%2C%22last_name%22%3A%22%22%2C%22username%22%3A%22AmmSnA%22%2C%22language_code%22%3A%22km%22%7D&auth_date=1794295094&hash=mock_local_dev_hash",
+              initData: "",
               initDataUnsafe: {
-                user: {
-                  id: 924441299,
-                  first_name: "SnA",
-                  last_name: "",
-                  username: "AmmSnA",
-                  language_code: "km",
-                  photo_url: "/storage/logo/logo.png"
-                }
+                user: null
               },
               ready: function() {},
               expand: function() {},
@@ -272,6 +267,291 @@
     </script>
 
     <script type="module" src="/build/assets/app-DkOyG5va.js"></script>
+
+    <!-- ============================================================ -->
+    <!-- 🛡 Live Watching & Security Monitor (Super Admin only)        -->
+    <!-- Injected panel: dark-gold theme, polls /super_admin/api/...  -->
+    <!-- ============================================================ -->
+    <script>
+      (function() {
+        var panelEl = null, pollTimer = null, sidebarItem = null;
+
+        var CSS = [
+          '.sr-sec-btn{position:fixed;bottom:14px;left:14px;z-index:99998;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#d97706 100%);color:#0b0706;border:none;border-radius:9999px;padding:10px 18px;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,.5);font-family:inherit}',
+          '.sr-sec-btn:hover{filter:brightness(1.1)}',
+          '.sr-sec-overlay{position:fixed;inset:0;z-index:99997;background:rgba(11,9,20,.85);backdrop-filter:blur(6px);display:none;overflow-y:auto}',
+          '.sr-sec-overlay.open{display:block}',
+          '.sr-sec-panel{max-width:1100px;margin:40px auto;background:#0d0a18;border:1px solid rgba(245,158,11,.4);border-radius:18px;padding:20px;color:#fff;font-family:inherit}',
+          '.sr-sec-panel h2{font-size:16px;font-weight:800;color:#fbbf24;margin:0 0 4px}',
+          '.sr-sec-panel h3{font-size:13px;font-weight:700;color:#fbbf24;margin:18px 0 8px;border-bottom:1px solid rgba(245,158,11,.25);padding-bottom:6px}',
+          '.sr-sec-close{float:right;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px}',
+          '.sr-sec-sub{font-size:11px;color:#9ca3af;margin-bottom:12px}',
+          '.sr-sec-table{width:100%;border-collapse:collapse;font-size:12px}',
+          '.sr-sec-table th{text-align:left;color:#fbbf24;padding:6px 8px;border-bottom:1px solid rgba(245,158,11,.3);font-size:11px}',
+          '.sr-sec-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}',
+          '.sr-badge{display:inline-block;padding:2px 10px;border-radius:9999px;font-size:10px;font-weight:800;white-space:nowrap}',
+          '.sr-badge.vip{background:linear-gradient(135deg,#fbbf24,#d97706);color:#0b0706}',
+          '.sr-badge.purchased{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.4)}',
+          '.sr-badge.free{background:rgba(56,189,248,.15);color:#38bdf8;border:1px solid rgba(56,189,248,.4)}',
+          '.sr-badge.bypass{background:rgba(239,68,68,.2);color:#f87171;border:1px solid rgba(239,68,68,.6);animation:srFlash 1s infinite}',
+          '@keyframes srFlash{0%,100%{opacity:1}50%{opacity:.35}}',
+          '.sr-revoke{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:3px 10px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}',
+          '.sr-revoke:hover{background:#ef4444}',
+          '.sr-log{display:flex;gap:10px;padding:8px;border-radius:10px;margin-bottom:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);font-size:11px;align-items:center}',
+          '.sr-log.type-BYPASS_ATTEMPT{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.06)}',
+          '.sr-log.type-FAKE_INIT_DATA,.sr-log.type-TOKEN_SHARING,.sr-log.type-UNAUTHORIZED_STREAM{border-color:rgba(245,158,11,.4)}',
+          '.sr-log-time{color:#9ca3af;white-space:nowrap;font-size:10px}',
+          '.sr-log-type{font-weight:800;white-space:nowrap}',
+          '.sr-log-detail{color:#d1d5db;flex:1}',
+          '.sr-empty{color:#6b7280;font-size:11px;padding:10px;text-align:center}',
+          '.sr-login-box{max-width:340px;margin:60px auto;background:#0d0a18;border:1px solid rgba(245,158,11,.4);border-radius:16px;padding:24px}',
+          '.sr-login-box input{width:100%;box-sizing:border-box;margin-bottom:10px;background:#161128;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;color:#fff;font-size:12px}',
+          '.sr-login-btn{width:100%;background:linear-gradient(135deg,#fbbf24,#d97706);color:#0b0706;border:none;border-radius:10px;padding:10px;font-weight:800;cursor:pointer;font-size:12px}',
+          '.sr-err{color:#f87171;font-size:11px;margin-top:8px}'
+        ].join('\\n');
+
+        var style = document.createElement('style');
+        style.textContent = CSS;
+        document.head.appendChild(style);
+
+        function isActiveArea() {
+          return window.location.pathname.indexOf('/super_admin') === 0;
+        }
+
+        function ensureButton() {
+          if (!isActiveArea()) return;
+          if (document.getElementById('sr-sec-open-btn')) return;
+          var btn = document.createElement('button');
+          btn.id = 'sr-sec-open-btn';
+          btn.className = 'sr-sec-btn';
+          btn.innerHTML = '🛡 តាមដាន & សុវត្ថិភាព';
+          btn.addEventListener('click', openPanel);
+          document.body.appendChild(btn);
+        }
+
+        // Try to add a sidebar entry styled like the built-in Super Admin links
+        function injectSidebarItem() {
+          if (!isActiveArea()) return;
+          var anchor = document.querySelector('a[href="/super_admin/comments"]');
+          if (!anchor || document.getElementById('sr-sec-nav-item')) return;
+          var item = document.createElement('a');
+          item.id = 'sr-sec-nav-item';
+          item.href = '#';
+          item.className = 'flex items-center px-4 py-3 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-xl border border-transparent transition-all';
+          item.style.fontSize = '14px';
+          item.style.fontWeight = '700';
+          item.innerHTML = '<span style="width:20px;display:inline-block;margin-right:12px">🛡</span> តាមដាន & សុវត្ថិភាព';
+          item.addEventListener('click', function(e) {
+            e.preventDefault();
+            openPanel();
+          });
+          anchor.parentNode.insertBefore(item, anchor.nextSibling);
+        }
+
+        var mo = new MutationObserver(function() {
+          ensureButton();
+          injectSidebarItem();
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
+        setInterval(function() { ensureButton(); injectSidebarItem(); }, 1500);
+
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+
+        function statusBadge(status) {
+          if (status === 'VIP') return '<span class="sr-badge vip">VIP 👑</span>';
+          if (status === 'PURCHASED') return '<span class="sr-badge purchased">បានទិញ</span>';
+          if (status === 'BYPASS_ATTEMPT') return '<span class="sr-badge bypass">🚨 Bypass Attempt</span>';
+          return '<span class="sr-badge free">ហ្វ្រី</span>';
+        }
+
+        function logTypeLabel(type) {
+          var map = {
+            'BYPASS_ATTEMPT': '<span style="color:#f87171">🚨 BYPASS_ATTEMPT</span>',
+            'FAKE_INIT_DATA': '<span style="color:#fbbf24">FAKE_INIT_DATA</span>',
+            'TOKEN_SHARING': '<span style="color:#fbbf24">TOKEN_SHARING</span>',
+            'UNAUTHORIZED_STREAM': '<span style="color:#fbbf24">UNAUTHORIZED_STREAM</span>',
+            'INVALID_STREAM_SIG': '<span style="color:#fbbf24">INVALID_STREAM_SIG</span>',
+            'SESSION_REVOKED': '<span style="color:#34d399">SESSION_REVOKED</span>',
+            'PROXY_ERROR': '<span style="color:#9ca3af">PROXY_ERROR</span>'
+          };
+          return map[type] || '<span style="color:#9ca3af">' + esc(type) + '</span>';
+        }
+
+        function getToken() {
+          return sessionStorage.getItem('sr_admin_token') || localStorage.getItem('admin_token') || '';
+        }
+
+        function fetchMonitor() {
+          var token = getToken();
+          return fetch('/super_admin/api/security-monitor', {
+            headers: { 'x-admin-token': token }
+          }).then(function(r) {
+            if (r.status === 403) throw new Error('auth');
+            return r.json();
+          });
+        }
+
+        function revokeUser(userId) {
+          var token = getToken();
+          return fetch('/super_admin/api/users/' + encodeURIComponent(userId) + '/revoke-session', {
+            method: 'POST',
+            headers: { 'x-admin-token': token }
+          }).then(function(r) { return r.json(); });
+        }
+
+        function openPanel() {
+          if (panelEl) { panelEl.classList.add('open'); return startPolling(); }
+          if (!getToken()) return openLogin();
+          buildPanel();
+          panelEl.classList.add('open');
+          startPolling();
+        }
+
+        function openLogin() {
+          var box = document.createElement('div');
+          box.className = 'sr-sec-overlay open';
+          box.innerHTML =
+            '<div class="sr-login-box">' +
+              '<h2>🛡 Super Admin Verification</h2>' +
+              '<div class="sr-sec-sub">សូមបញ្ចូលព័ត៌មាន Super Admin ដើម្បីបើកផ្ទាំងតាមដានសុវត្ថិភាព</div>' +
+              '<input id="sr-login-email" type="email" placeholder="អ៊ីមែល">' +
+              '<input id="sr-login-pass" type="password" placeholder="ពាក្យសម្ងាត់">' +
+              '<button class="sr-login-btn" id="sr-login-go">ផ្ទៀងផ្ទាត់</button>' +
+              '<div class="sr-err" id="sr-login-err"></div>' +
+              '<button class="sr-sec-close" style="float:none;margin-top:14px" id="sr-login-cancel">បិទ</button>' +
+            '</div>';
+          document.body.appendChild(box);
+          box.querySelector('#sr-login-cancel').addEventListener('click', function() { box.remove(); });
+          box.querySelector('#sr-login-go').addEventListener('click', function() {
+            var email = box.querySelector('#sr-login-email').value;
+            var pass = box.querySelector('#sr-login-pass').value;
+            fetch('/admin/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email, password: pass })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+              if (d.token && (d.role === 'super_admin' || !d.role)) {
+                sessionStorage.setItem('sr_admin_token', d.token);
+                box.remove();
+                buildPanel();
+                panelEl.classList.add('open');
+                startPolling();
+              } else {
+                box.querySelector('#sr-login-err').textContent = 'មិនមែនជា Super Admin ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ!';
+              }
+            }).catch(function() {
+              box.querySelector('#sr-login-err').textContent = 'ការតភ្ជាប់បរាជ័យ!';
+            });
+          });
+        }
+
+        function buildPanel() {
+          panelEl = document.createElement('div');
+          panelEl.className = 'sr-sec-overlay';
+          panelEl.innerHTML =
+            '<div class="sr-sec-panel">' +
+              '<button class="sr-sec-close" id="sr-sec-close">✕ បិទ</button>' +
+              '<h2>🛡 តាមដានការទស្សនា & សុវត្ថិភាព (Live &amp; Security)</h2>' +
+              '<div class="sr-sec-sub" id="sr-sec-updated">កំពុងផ្ទុក...</div>' +
+              '<h3>👁 អ្នកកំពុងទស្សនាឥឡូវនេះ (Live Viewers — ៦០ វិនាទីចុងក្រោយ)</h3>' +
+              '<div id="sr-sec-watchers"><div class="sr-empty">កំពុងផ្ទុក...</div></div>' +
+              '<h3>🚨 កំណត់ហេតុសុវត្ថិភាព & ការព្យាយាមដោះស្រាច (Security & Bypass Logs)</h3>' +
+              '<div id="sr-sec-logs"><div class="sr-empty">កំពុងផ្ទុក...</div></div>' +
+            '</div>';
+          document.body.appendChild(panelEl);
+          panelEl.querySelector('#sr-sec-close').addEventListener('click', closePanel);
+          panelEl.addEventListener('click', function(e) {
+            var btn = e.target.closest('.sr-revoke');
+            if (!btn) return;
+            var uid = btn.getAttribute('data-uid');
+            btn.disabled = true;
+            btn.textContent = 'កំពុងលុប...';
+            revokeUser(uid).then(function() { refreshNow(); }).catch(function() {
+              btn.disabled = false;
+              btn.textContent = '🚫 Revoke/Kick';
+            });
+          });
+        }
+
+        function closePanel() {
+          if (panelEl) panelEl.classList.remove('open');
+          stopPolling();
+        }
+
+        function startPolling() {
+          stopPolling();
+          refreshNow();
+          pollTimer = setInterval(refreshNow, 5000);
+        }
+        function stopPolling() {
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+
+        function fmtTime(iso) {
+          try {
+            var d = new Date(iso);
+            return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          } catch (e) { return ''; }
+        }
+
+        function refreshNow() {
+          if (!panelEl || !panelEl.classList.contains('open')) return;
+          fetchMonitor().then(function(data) {
+            var watchers = data.active_watchers || [];
+            var logs = data.security_logs || [];
+            var uEl = panelEl.querySelector('#sr-sec-updated');
+            if (uEl) uEl.textContent = 'ធ្វើបច្ចុប្បន្នភាព: ' + fmtTime(data.server_time) + ' • អ្នកមើលៈ ' + watchers.length + ' • Logs: ' + logs.length;
+
+            var wEl = panelEl.querySelector('#sr-sec-watchers');
+            if (!watchers.length) {
+              wEl.innerHTML = '<div class="sr-empty">គ្មានអ្នកកំពុងទស្សនាទេ (ពេលនេះ)</div>';
+            } else {
+              var rows = watchers.map(function(w) {
+                var title = esc(w.movie_title || '') + (w.episode_title ? ' — ' + esc(w.episode_title) : '');
+                return '<tr>' +
+                  '<td><b>' + esc(w.user_name || 'User') + '</b><br><span style="color:#9ca3af;font-size:10px">ID ' + esc(w.user_id) + '</span></td>' +
+                  '<td>' + title + '</td>' +
+                  '<td>' + esc(w.ip || '-') + '</td>' +
+                  '<td>' + statusBadge(w.status) + '</td>' +
+                  '<td style="font-size:10px;color:#9ca3af">' + fmtTime(new Date(w.last_ping).toISOString()) + '</td>' +
+                  '<td><button class="sr-revoke" data-uid="' + esc(w.user_id) + '">🚫 Revoke/Kick</button></td>' +
+                '</tr>';
+              }).join('');
+              wEl.innerHTML = '<table class="sr-sec-table"><thead><tr>' +
+                '<th>អ្នកប្រើប្រាស់</th><th>រឿង/ភាគ</th><th>IP</th><th>ស្ថានភាព</th><th>Ping</th><th>សកម្មភាព</th>' +
+                '</tr></thead><tbody>' + rows + '</tbody></table>';
+            }
+
+            var lEl = panelEl.querySelector('#sr-sec-logs');
+            if (!logs.length) {
+              lEl.innerHTML = '<div class="sr-empty">គ្មានកំណត់ហេតុសុវត្ថិភាពនៅឡើយទេ</div>';
+            } else {
+              lEl.innerHTML = logs.slice(0, 50).map(function(l) {
+                var revokeBtn = l.user_id ? '<button class="sr-revoke" data-uid="' + esc(l.user_id) + '">🚫 Revoke</button>' : '';
+                return '<div class="sr-log type-' + esc(l.type) + '">' +
+                  '<span class="sr-log-time">' + fmtTime(l.timestamp) + '</span>' +
+                  '<span class="sr-log-type">' + logTypeLabel(l.type) + '</span>' +
+                  '<span class="sr-log-detail"><b>' + esc(l.user_name || 'N/A') + '</b> (ID ' + esc(l.user_id == null ? '-' : l.user_id) + ', IP ' + esc(l.ip || '-') + ') — ' + esc(l.details || '') + '</span>' +
+                  revokeBtn +
+                '</div>';
+              }).join('');
+            }
+          }).catch(function(e) {
+            if (String(e && e.message) === 'auth') {
+              stopPolling();
+              if (panelEl) panelEl.remove();
+              panelEl = null;
+              sessionStorage.removeItem('sr_admin_token');
+              openLogin();
+            }
+          });
+        }
+      })();
+    </script>
 </body>
 </html>
 

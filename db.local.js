@@ -15,11 +15,18 @@ function writeDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
+// ZERO-TRUST: resolve the caller strictly by its cryptographically random
+// session_token (Bearer header or ?token=). Never trust user_id/telegram_id
+// query/body params and never fall back to db.users[0].
 function getCurrentUser(req, db) {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.replace('Bearer ', '') || req.query.token;
-  const user = (!token) ? (db.users[0] || null) : ((db.users.find(u => String(u.id) === String(token.replace('token_', '')))) || db.users[0] || null);
-  if (user && user.is_vip && user.vip_expires_at) {
+  let token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
+  if (!token && req.query && req.query.token) token = String(req.query.token).trim();
+  if (!token) return null;
+  const user = (db.users || []).find(u => u && u.session_token && String(u.session_token) === token) || null;
+  if (!user) return null;
+  if (user.session_expires_at && new Date(user.session_expires_at).getTime() < Date.now()) return null;
+  if (user.is_vip && user.vip_expires_at) {
     if (new Date(user.vip_expires_at).getTime() < Date.now()) {
       user.is_vip = false;
       writeDB(db);

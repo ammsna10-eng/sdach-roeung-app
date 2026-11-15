@@ -3,7 +3,9 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { readDB, writeDB, getCurrentUser } = require('../db');
+const { logSecurityEvent, clientIp } = require('../services/security');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -17,20 +19,84 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Never echo internal session credentials back in user payloads
+function publicUser(u) {
+  if (!u) return u;
+  const { session_token, session_expires_at, ...safe } = u;
+  return safe;
+}
+
+// ============================================================
+// TELEGRAM initData CRYPTOGRAPHIC VERIFICATION (HMAC-SHA256)
+// Official algorithm: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+// ============================================================
+function verifyTelegramInitData(initData, botToken) {
+  if (!initData || typeof initData !== 'string' || !initData.trim()) return null;
+  if (!botToken) return null;
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return null;
+    params.delete('hash');
+
+    const pairs = [];
+    for (const [key, value] of params.entries()) {
+      pairs.push(`${key}=${value}`);
+    }
+    pairs.sort();
+    const dataCheckString = pairs.join('\n');
+
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+    const computed = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+    const a = Buffer.from(computed, 'hex');
+    const b = Buffer.from(hash, 'hex');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+    // Replay protection: auth_date must not be older than 24h
+    const authDate = parseInt(params.get('auth_date') || '0', 10);
+    if (!authDate || Math.floor(Date.now() / 1000) - authDate > 86400) return null;
+
+    const userStr = params.get('user');
+    if (!userStr) return null;
+    const tgUser = JSON.parse(userStr);
+    if (!tgUser || !tgUser.id) return null;
+    return tgUser;
+  } catch (e) {
+    return null;
+  }
+}
+
 router.post('/telegram-login', (req, res) => {
   const db = readDB();
-  let telegramUser = null;
-  try {
-    const searchParams = new URLSearchParams(req.body.initData || '');
-    const userStr = searchParams.get('user');
-    if (userStr) telegramUser = JSON.parse(userStr);
-  } catch (e) {}
+  const ip = clientIp(req);
+  const initData = (req.body && req.body.initData) || '';
+  const botToken = process.env.BOT_TOKEN || (db.settings && db.settings.bot_token) || '';
+
+  let telegramUser = verifyTelegramInitData(initData, botToken);
+
+  // Explicit opt-in dev bypass ONLY (never enabled by default)
+  if (!telegramUser && process.env.ALLOW_DEV_LOGIN === 'true') {
+    try {
+      telegramUser = JSON.parse(new URLSearchParams(initData).get('user') || 'null');
+    } catch (e) {}
+    if (!telegramUser) {
+      telegramUser = { id: 1, first_name: 'DevUser', username: 'dev_user', photo_url: '/storage/logo/logo.png' };
+    }
+  }
 
   if (!telegramUser) {
-    telegramUser = { id: 924441299, first_name: "SnA", username: "AmmSnA", photo_url: "/storage/logo/logo.png" };
+    logSecurityEvent(db, 'FAKE_INIT_DATA', {
+      user_id: null,
+      user_name: '',
+      ip,
+      details: 'Rejected login: missing/invalid initData HMAC-SHA256 signature or expired auth_date'
+    });
+    return res.status(401).json({ message: 'Unauthorized: invalid Telegram initData' });
   }
 
   let user = db.users.find(u => String(u.telegram_id) === String(telegramUser.id));
+  let created = false;
   if (!user) {
     user = {
       id: telegramUser.id,
@@ -46,32 +112,32 @@ router.post('/telegram-login', (req, res) => {
       created_at: new Date().toISOString()
     };
     db.users.push(user);
-    writeDB(db);
+    created = true;
   } else {
     // Update live profile info from Telegram (photo, names, username)
-    let updated = false;
     if (telegramUser.first_name && user.first_name !== telegramUser.first_name) {
       user.first_name = telegramUser.first_name;
-      updated = true;
     }
     if (telegramUser.last_name !== undefined && user.last_name !== telegramUser.last_name) {
       user.last_name = telegramUser.last_name;
-      updated = true;
     }
     if (telegramUser.username !== undefined && user.username !== telegramUser.username) {
       user.username = telegramUser.username;
-      updated = true;
     }
     if (telegramUser.photo_url && user.photo_url !== telegramUser.photo_url) {
       user.photo_url = telegramUser.photo_url;
-      updated = true;
     }
-    if (updated) writeDB(db);
   }
 
+  // Cryptographically unpredictable session token (64 hex chars, 30-day expiry)
+  const sessionToken = crypto.randomBytes(32).toString('hex');
+  user.session_token = sessionToken;
+  user.session_expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  writeDB(db);
+
   res.json({
-    token: `token_${user.id}`,
-    user: user,
+    token: sessionToken,
+    user: publicUser(user),
     wallet_balance: parseFloat(user.wallet_balance || 0),
     is_vip: Boolean(user.is_vip),
     vip_expires_at: user.vip_expires_at
@@ -88,7 +154,7 @@ router.get('/me', (req, res) => {
     .map(p => db.movies.find(m => String(m.id) === String(p.movie_id))).filter(Boolean);
   const purchasedEpisodes = purchases.filter(p => p.episode_id).map(p => ({ id: p.episode_id }));
 
-  res.json({ user, purchased_movies: purchasedMovies, purchased_episodes: purchasedEpisodes });
+  res.json({ user: publicUser(user), purchased_movies: purchasedMovies, purchased_episodes: purchasedEpisodes });
 });
 
 router.get('/transactions/history', (req, res) => {
@@ -156,12 +222,13 @@ router.get('/user/topup-packages', (req, res) => {
 router.post('/user/topup-request', upload.single('screenshot'), (req, res) => {
   const db = readDB();
   const user = getCurrentUser(req, db);
+  if (!user) return res.status(401).json({ message: 'Unauthorized' });
   const packageId = parseInt(req.body.package_id);
   const pkg = (db.topup_packages || []).find(p => p.id === packageId);
 
   const topup = {
     id: Date.now(),
-    user_id: user ? user.id : 924441299,
+    user_id: user.id,
     package_id: packageId,
     amount: pkg ? pkg.price : 1.0,
     received_amount: pkg ? pkg.balance_amount : 1.0,
@@ -189,12 +256,13 @@ router.get('/user/vip-plans', (req, res) => {
 router.post('/user/vip-request', upload.single('screenshot'), (req, res) => {
   const db = readDB();
   const user = getCurrentUser(req, db);
+  if (!user) return res.status(401).json({ message: 'Unauthorized' });
   const planId = parseInt(req.body.plan_id);
   const plan = (db.vip_plans || []).find(p => p.id === planId);
 
   const vip = {
     id: Date.now(),
-    user_id: user ? user.id : 924441299,
+    user_id: user.id,
     plan_id: planId,
     amount: plan ? plan.price : 2.5,
     duration_days: plan ? plan.duration_days : 30,

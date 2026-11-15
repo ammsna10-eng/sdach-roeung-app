@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="km">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ស្ដេចរឿង - Sdach Roeung Mini App</title>
+    <title>ážŸáŸ’ážŠáŸáž…ážšáž¿áž„ - Sdach Roeung Mini App</title>
     <link rel="icon" type="image/png" href="/storage/logo/logo.png">
     
     <!-- Google Fonts for Khmer -->
@@ -22,10 +22,10 @@
           var isRouteAdmin = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/super_admin');
           if (!isRouteAdmin) {
             window.Telegram.WebApp = {
-              initData: "user=%7B%22id%22%3A924441299%2C%22first_name%22%3A%22SnA%22%2C%22last_name%22%3A%22%22%2C%22username%22%3A%22AmmSnA%22%2C%22language_code%22%3A%22km%22%7D&auth_date=1794295094&hash=mock_local_dev_hash",
+              initData: "",
               initDataUnsafe: {
                 user: {
-                  id: 924441299,
+                  id: null,
                   first_name: "SnA",
                   last_name: "",
                   username: "AmmSnA",
@@ -142,10 +142,10 @@
 <body class="bg-[#0b0914] text-white selection:bg-amber-500 selection:text-black">
     <!-- Dev Helper Toolbar (moved to bottom right so it doesn't obstruct header) -->
     <div id="dev-nav">
-      <span>👑 ស្ដេចរឿង:</span>
-      <a href="/">📱 Mini App</a>
+      <span>ðŸ‘‘ ážŸáŸ’ážŠáŸáž…ážšáž¿áž„:</span>
+      <a href="/">ðŸ“± Mini App</a>
       <span>|</span>
-      <a href="/admin/login">⚙️ Admin</a>
+      <a href="/admin/login">âš™ï¸ Admin</a>
     </div>
 
     <div id="app"></div>

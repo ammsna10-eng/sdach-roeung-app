@@ -18,7 +18,7 @@ function getAbaHash(str, key) {
 router.post('/payment/aba/create-qr', async (req, res) => {
   try {
     const db = readDB();
-    const user = getCurrentUser(req, db) || { id: 924441299, first_name: 'SnA' };
+    const user = getCurrentUser(req, db) || { id: 0, first_name: 'Guest' };
     const { amount, type, target_id } = req.body; // type: 'topup' | 'vip' | 'movie'
 
     const reqTime = Math.floor(Date.now() / 1000).toString();

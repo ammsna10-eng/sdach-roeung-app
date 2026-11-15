@@ -7,11 +7,11 @@ const app = createApp({
     
     const activeTab = ref('home');
     const user = ref({
-      id: 924441299,
-      first_name: 'SnA',
-      username: 'AmmSnA',
+      id: null,
+      first_name: '',
+      username: '',
       photo_url: '/storage/logo/logo.png',
-      wallet_balance: 5.0,
+      wallet_balance: 0.0,
       is_vip: false,
       vip_expires_at: null
     });
@@ -83,7 +83,6 @@ const app = createApp({
             release_year: movie.release_year,
             type: movie.type,
             price: movie.price,
-            video_url: movie.video_url,
             is_dubbed: movie.is_dubbed
           },
           currentTime: Math.floor(currentTime),
@@ -122,6 +121,12 @@ const app = createApp({
       setTimeout(() => { notification.value.show = false; }, 3000);
     };
 
+    // Restore a still-valid session token before anything else so /api/me works
+    const savedToken = localStorage.getItem('auth_token');
+    if (savedToken) {
+      axios.defaults.headers.common['Authorization'] = 'Bearer ' + savedToken;
+    }
+
     const initTelegram = async () => {
       let tg = window.Telegram?.WebApp;
       if (tg) {
@@ -139,7 +144,11 @@ const app = createApp({
           localStorage.setItem('auth_token', res.data.token);
           axios.defaults.headers.common['Authorization'] = 'Bearer ' + res.data.token;
         }
-      } catch (err) {}
+      } catch (err) {
+        if (err.response && err.response.status === 401) {
+          showNotify('⚠️ ការផ្ទៀងផ្ទាត់ Telegram initData បរាជ័យ! សូមបើកក្នុង Telegram ម្ដងទៀត។', 'error');
+        }
+      }
     };
 
     const formatVipExpire = (dateStr) => {
@@ -258,6 +267,7 @@ const app = createApp({
       isPlayerOpen.value = false;
       activeStreamUrl.value = '';
       videoErrorMessage.value = '';
+      stopWatchingPing();
       const tg = window.Telegram?.WebApp;
       if (tg?.exitFullscreen) {
         try { tg.exitFullscreen(); } catch (e) {}
@@ -291,6 +301,43 @@ const app = createApp({
       if (selectedMovie.value) {
         playMovie(selectedMovie.value, currentEpisode.value);
       }
+    };
+
+    // ==========================================
+    // 🟢 Live Watching Heartbeat (POST /api/watching/ping every 20s)
+    // Server re-verifies entitlement; force_stop immediately halts playback.
+    // ==========================================
+    let watchingPingTimer = null;
+    const stopWatchingPing = () => {
+      if (watchingPingTimer) {
+        clearInterval(watchingPingTimer);
+        watchingPingTimer = null;
+      }
+    };
+    const startWatchingPing = () => {
+      stopWatchingPing();
+      if (!selectedMovie.value) return;
+      watchingPingTimer = setInterval(async () => {
+        if (!isPlayerOpen.value || !isVideoPlaying.value || !selectedMovie.value) return;
+        try {
+          const res = await axios.post('/api/watching/ping', {
+            movie_id: selectedMovie.value.id,
+            episode_id: currentEpisode.value ? currentEpisode.value.id : null
+          });
+          if (res.data && res.data.force_stop) {
+            forceStopPlayback();
+          }
+        } catch (e) {
+          if (e.response && e.response.data && e.response.data.force_stop) {
+            forceStopPlayback();
+          }
+        }
+      }, 20000);
+    };
+    const forceStopPlayback = () => {
+      stopWatchingPing();
+      showNotify('🚨 ការទស្សនាត្រូវបានបញ្ឈប់ដោយប្រព័ន្ធសុវត្ថិភាព!', 'error');
+      closePlayer();
     };
 
     // ==========================================
@@ -413,20 +460,19 @@ const app = createApp({
       videoErrorMessage.value = '';
       isVideoBlocked.value = false;
 
-      let url = customUrl || (ep ? ep.video_url : movie.video_url);
+      // SECURITY: raw video_url is never exposed by the API anymore.
+      // Always resolve playback through the signed, entitlement-gated
+      // /api/stream/movies/:id endpoint (customUrl = trailer only).
+      let url = customUrl || null;
+      let streamType = 'mp4';
 
-      // If video_url is missing on client, resolve it from stream endpoint
       if (!url && movie.id) {
         try {
           const endpoint = ep ? `/api/stream/movies/${movie.id}?episode_id=${ep.id}` : `/api/stream/movies/${movie.id}`;
           const sRes = await axios.get(endpoint);
           if (sRes.data && sRes.data.stream_url) {
             url = sRes.data.stream_url;
-            if (ep) ep.video_url = url;
-            else movie.video_url = url;
-            if (selectedMovie.value && String(selectedMovie.value.id) === String(movie.id)) {
-              selectedMovie.value.video_url = url;
-            }
+            streamType = sRes.data.type === 'hls' ? 'hls' : 'mp4';
           }
         } catch (err) {
           if (err.response?.status === 403) {
@@ -470,16 +516,19 @@ const app = createApp({
           plyrInstance.on('play', () => {
             isVideoPlaying.value = true;
             revealMobileCenterBtn();
+            startWatchingPing();
           });
           plyrInstance.on('pause', () => {
             isVideoPlaying.value = false;
             clearTimeout(mobileCenterBtnTimer);
             showMobileCenterBtn.value = true;
+            stopWatchingPing();
           });
           plyrInstance.on('ended', () => {
             isVideoPlaying.value = false;
             clearTimeout(mobileCenterBtnTimer);
             showMobileCenterBtn.value = true;
+            stopWatchingPing();
           });
           plyrInstance.on('controlsshown', () => {
             if (isMobileDeviceRef.value) revealMobileCenterBtn();
@@ -593,10 +642,11 @@ const app = createApp({
           }
         }
 
-        // Set the new video source
+        // Set the new video source (signed proxy URL; HLS manifests are
+        // rewritten & proxied server-side, MP4 streams support Range seeking)
         plyrInstance.source = {
           type: 'video',
-          sources: [{ src: url, type: 'video/mp4' }]
+          sources: [{ src: url, type: streamType === 'hls' ? 'application/x-mpegURL' : 'video/mp4' }]
         };
 
         // Restore watch history position
@@ -623,31 +673,19 @@ const app = createApp({
         user.value.wallet_balance = parseFloat(res.data.new_balance);
         isPurchased.value = true;
 
-        const unlockedMovie = res.data.movie || { ...movie, video_url: res.data.video_url };
-        if (res.data.video_url) {
-          unlockedMovie.video_url = res.data.video_url;
-        }
-
-        selectedMovie.value = { ...selectedMovie.value, ...unlockedMovie };
-        if (unlockedMovie.seasons) {
-          movieSeasons.value = unlockedMovie.seasons;
-        }
-
-        const syncList = (list) => {
-          if (!Array.isArray(list)) return;
-          const idx = list.findIndex(m => m && String(m.id) === String(movie.id));
-          if (idx !== -1) {
-            list[idx] = { ...list[idx], ...unlockedMovie };
+        // SECURITY: purchase no longer returns video_url. Refresh the
+        // sanitized detail, then play through the signed stream endpoint.
+        try {
+          const dRes = await axios.get('/api/user/movies/' + movie.id);
+          if (dRes.data && dRes.data.movie) {
+            selectedMovie.value = dRes.data.movie;
+            movieSeasons.value = dRes.data.movie.seasons || [];
+            isPurchased.value = Boolean(dRes.data.has_purchased || dRes.data.is_vip);
           }
-        };
-        syncList(movies.value);
-        syncList(sliderMovies.value);
-        syncList(popularMovies.value);
-        syncList(dubbedMovies.value);
-        syncList(seriesMovies.value);
+        } catch (e) {}
 
         if (!purchasedMovies.value.some(m => String(m.id) === String(movie.id))) {
-          purchasedMovies.value.unshift(unlockedMovie);
+          purchasedMovies.value.unshift({ ...movie, video_url: undefined });
         }
 
         showNotify(res.data.message || 'បានទិញជោគជ័យ! សូមរីករាយទស្សនា', 'success');
@@ -985,7 +1023,7 @@ const app = createApp({
     // ==========================================
     const onlineCount = ref(1);
     const getVisitorKey = () => {
-      if (user.value && user.value.id && Number(user.value.id) !== 924441299) {
+      if (user.value && user.value.id) {
         return 'u_' + user.value.id;
       }
       let vid = localStorage.getItem('sr_visitor_id');
